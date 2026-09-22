@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'l.lum@reset-corp.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Admins Collection
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Candidates Collection
+    match /candidates/{candidateId} {
+      allow list: if isAdmin();
+      allow get: if isValidId(candidateId);
+      allow create: if isValidId(candidateId) && (
+        isAdmin() || (
+          incoming().keys().hasAll(['id', 'name', 'email', 'createdAt']) &&
+          incoming().keys().hasOnly(['id', 'name', 'email', 'createdAt', 'updatedAt', 'zohoCandidateId']) &&
+          incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 150 &&
+          incoming().email is string && incoming().email.size() > 3 && incoming().email.size() <= 200
+        )
+      );
+      allow update: if isValidId(candidateId) && (
+        isAdmin() || (
+          incoming().keys().hasAll(['id', 'name', 'email', 'createdAt']) &&
+          incoming().name is string && incoming().name.size() <= 150 &&
+          incoming().email is string && incoming().email.size() <= 200
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Invitations Collection (Single-use links)
+    match /invitations/{invitationId} {
+      allow list: if isAdmin();
+      allow get: if isValidId(invitationId);
+      allow create: if isAdmin() && isValidId(invitationId);
+      allow update: if isValidId(invitationId) && (
+        isAdmin() || (
+          // Candidate marking invitation as used or in progress
+          existing().status in ['pending', 'in_progress'] &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedAt']) &&
+          incoming().status in ['in_progress', 'completed']
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Assessment Sessions Collection
+    match /assessment_sessions/{sessionId} {
+      allow list: if isAdmin();
+      allow get: if isValidId(sessionId);
+      allow create: if isValidId(sessionId) && (
+        isAdmin() || (
+          incoming().keys().hasAll(['sessionId', 'status', 'startedAt', 'elapsedSeconds']) &&
+          incoming().status in ['started', 'in_progress'] &&
+          incoming().elapsedSeconds is number && incoming().elapsedSeconds >= 0 &&
+          !incoming().keys().hasAny(['totalScore', 'manualScore', 'objectiveScore'])
+        )
+      );
+      allow update: if isValidId(sessionId) && (
+        isAdmin() || (
+          existing().status != 'submitted' &&
+          incoming().status in ['in_progress', 'submitted'] &&
+          incoming().elapsedSeconds is number &&
+          !incoming().diff(existing()).affectedKeys().hasAny(['totalScore', 'manualScore', 'objectiveScore'])
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Assessment Answers Collection
+    match /assessment_answers/{answerId} {
+      allow list: if isAdmin();
+      allow get: if isValidId(answerId);
+      allow create, update: if isValidId(answerId) && (
+        isAdmin() || (
+          incoming().keys().hasAll(['id', 'sessionId', 'questionId', 'recordedAt']) &&
+          incoming().answer is string && incoming().answer.size() <= 50000 &&
+          !incoming().keys().hasAny(['manualScore', 'feedback'])
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Integrity Events Collection
+    match /integrity_events/{eventId} {
+      allow list, get: if isAdmin();
+      allow create: if isValidId(eventId) && (
+        isAdmin() || (
+          incoming().keys().hasAll(['eventId', 'sessionId', 'type', 'timestamp']) &&
+          incoming().eventId is string && incoming().eventId.size() <= 150 &&
+          incoming().sessionId is string && incoming().sessionId.size() <= 150 &&
+          incoming().type is string && incoming().type.size() <= 60
+        )
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // Work Style Assessments Collection
+    match /work_style_assessments/{assessmentId} {
+      allow list: if isAdmin();
+      allow get: if isValidId(assessmentId);
+      allow create, update: if isValidId(assessmentId) && (
+        isAdmin() || (
+          incoming().keys().hasAll(['id', 'candidateId', 'sessionId', 'startedAt', 'completed']) &&
+          incoming().completed is bool
+        )
+      );
+      allow delete: if isAdmin();
+    }
+  }
+}

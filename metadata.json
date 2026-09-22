@@ -1,0 +1,8 @@
+{
+  "name": "RESET Candidate Assessment & Work Style Profile",
+  "description": "Comprehensive technical assessment and workplace style evaluation platform with single-use invitations, browser integrity tracking, and administrative scoring dashboard.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,374 @@
+{
+  "entities": {
+    "Candidate": {
+      "title": "Candidate",
+      "description": "Candidate record containing contact details and metadata",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the candidate"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Candidate full name"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Candidate email address"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        },
+        "zohoCandidateId": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Optional external Zoho Recruit identifier"
+        }
+      },
+      "required": ["id", "name", "email", "createdAt"]
+    },
+    "Invitation": {
+      "title": "Invitation",
+      "description": "Single-use invitation link for candidates with expiration and assigned practical case variant",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique invitation ID (token)"
+        },
+        "candidateId": {
+          "type": "string",
+          "description": "Associated candidate ID"
+        },
+        "candidateName": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Candidate full name"
+        },
+        "candidateEmail": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Candidate email address"
+        },
+        "variant": {
+          "type": "string",
+          "enum": ["A", "B", "C"],
+          "description": "Assigned practical case variant"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "completed", "expired"],
+          "description": "Invitation status"
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "ISO timestamp when the invitation expires"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "usedAt": {
+          "type": "string",
+          "description": "ISO timestamp when the invitation was started/used"
+        }
+      },
+      "required": ["id", "candidateName", "candidateEmail", "variant", "status", "expiresAt", "createdAt"]
+    },
+    "AssessmentSession": {
+      "title": "AssessmentSession",
+      "description": "Technical assessment session record tracking duration, timer, and integrity counters",
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "description": "Unique session identifier"
+        },
+        "candidateId": {
+          "type": "string",
+          "description": "Associated candidate ID"
+        },
+        "invitationId": {
+          "type": "string",
+          "description": "Associated invitation ID"
+        },
+        "variant": {
+          "type": "string",
+          "enum": ["A", "B", "C"],
+          "description": "Practical case question variant"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["started", "in_progress", "submitted"],
+          "description": "Current status of the technical assessment"
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Assessment version tag"
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "ISO timestamp when the candidate started the session"
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "ISO timestamp when the candidate submitted the session"
+        },
+        "elapsedSeconds": {
+          "type": "number",
+          "description": "Total elapsed seconds in the session"
+        },
+        "copyCount": {
+          "type": "number",
+          "description": "Total copy events recorded"
+        },
+        "pasteCount": {
+          "type": "number",
+          "description": "Total paste events recorded"
+        },
+        "cutCount": {
+          "type": "number",
+          "description": "Total cut events recorded"
+        },
+        "hiddenCount": {
+          "type": "number",
+          "description": "Total visibility hidden events recorded"
+        },
+        "blurCount": {
+          "type": "number",
+          "description": "Total window blur events recorded"
+        },
+        "fullscreenExitCount": {
+          "type": "number",
+          "description": "Total exit fullscreen events recorded"
+        },
+        "browser": {
+          "type": "object",
+          "description": "Candidate browser and device metadata"
+        },
+        "totalScore": {
+          "type": "number",
+          "description": "Computed final score out of 100"
+        },
+        "objectiveScore": {
+          "type": "number",
+          "description": "Score from auto-evaluated objective questions"
+        },
+        "manualScore": {
+          "type": "number",
+          "description": "Score assigned by administrator for open-ended questions"
+        },
+        "evaluationStatus": {
+          "type": "string",
+          "enum": ["pending_review", "partially_reviewed", "completed"],
+          "description": "Review progress state"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["sessionId", "status", "startedAt", "elapsedSeconds"]
+    },
+    "AssessmentAnswer": {
+      "title": "AssessmentAnswer",
+      "description": "Individual answer for a technical assessment question",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Composed id {sessionId}_{questionId}"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Associated session ID"
+        },
+        "questionId": {
+          "type": "string",
+          "description": "Question ID (q1 to q14)"
+        },
+        "answer": {
+          "type": "string",
+          "maxLength": 50000,
+          "description": "Candidate answer text or selected option"
+        },
+        "autoScore": {
+          "type": "number",
+          "description": "Auto-calculated points (for objective questions like q1)"
+        },
+        "manualScore": {
+          "type": "number",
+          "description": "Manually assigned points by admin"
+        },
+        "feedback": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Admin notes or feedback for this answer"
+        },
+        "recordedAt": {
+          "type": "string",
+          "description": "ISO timestamp when the answer was recorded"
+        }
+      },
+      "required": ["id", "sessionId", "questionId", "recordedAt"]
+    },
+    "IntegrityEvent": {
+      "title": "IntegrityEvent",
+      "description": "Log of browser-level integrity events during assessment",
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Unique identifier for the integrity event"
+        },
+        "sessionId": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Associated assessment session ID"
+        },
+        "type": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Event type: copy, paste, cut, hidden, blur, fullscreen_exit, etc."
+        },
+        "questionId": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Active question ID during the event if any"
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Contextual description of the event"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp of occurrence"
+        }
+      },
+      "required": ["eventId", "sessionId", "type", "timestamp"]
+    },
+    "WorkStyleAssessment": {
+      "title": "WorkStyleAssessment",
+      "description": "RESET Work Style Profile evaluation containing 30 Likert responses, 6 dimension scores, and consistency flags",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Assessment document ID (typically same as sessionId or invitationId)"
+        },
+        "candidateId": {
+          "type": "string",
+          "description": "Candidate ID"
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "Associated assessment session ID"
+        },
+        "invitationId": {
+          "type": "string",
+          "description": "Associated invitation ID"
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "ISO timestamp when work style assessment started"
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "ISO timestamp when work style assessment was completed"
+        },
+        "elapsedSeconds": {
+          "type": "number",
+          "description": "Independent elapsed duration in seconds (7-10 min target)"
+        },
+        "assessmentVersion": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Work style module version"
+        },
+        "responses": {
+          "type": "object",
+          "description": "Dictionary of answers from item 1 to 30 with values 1 to 5"
+        },
+        "dimensionScores": {
+          "type": "object",
+          "description": "Normalized scores (0-100) for the 6 workplace dimensions"
+        },
+        "consistencyFlags": {
+          "type": "object",
+          "description": "Detected response patterns (all same, extreme, contradictory items)"
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the work style module was submitted"
+        }
+      },
+      "required": ["id", "candidateId", "sessionId", "startedAt", "completed"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized administrator record for reviewing assessments",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the administrator"
+        },
+        "email": {
+          "type": "string",
+          "description": "Administrator email address"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "superadmin"],
+          "description": "Role of the administrator"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of registration"
+        }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/candidates/{candidateId}": {
+      "schema": "Candidate",
+      "description": "Stored candidates in the evaluation pipeline"
+    },
+    "/invitations/{invitationId}": {
+      "schema": "Invitation",
+      "description": "Single-use invitation links with expiration"
+    },
+    "/assessment_sessions/{sessionId}": {
+      "schema": "AssessmentSession",
+      "description": "Candidate technical assessment sessions"
+    },
+    "/assessment_answers/{answerId}": {
+      "schema": "AssessmentAnswer",
+      "description": "Answers and scoring for each technical question"
+    },
+    "/integrity_events/{eventId}": {
+      "schema": "IntegrityEvent",
+      "description": "Browser and integrity telemetry events"
+    },
+    "/work_style_assessments/{assessmentId}": {
+      "schema": "WorkStyleAssessment",
+      "description": "Work style profile evaluation and dimension scores"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminUser",
+      "description": "Authorized administrators"
+    }
+  }
+}

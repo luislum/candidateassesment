@@ -85,7 +85,7 @@ pre{white-space:pre-wrap;background:#080d13;border:1px solid var(--line);border-
 
     <h3>Reglas de integridad</h3>
     <p>La evaluación debe realizarse individualmente, sin herramientas de inteligencia artificial, buscadores, documentación externa ni asistencia de terceros.</p>
-    <p>El sistema registra únicamente eventos de integridad del navegador: copiar, cortar, pegar, pérdida de foco, cambio de pestaña/ventana, salida de pantalla completa, hora de inicio, progreso y tiempo de entrega. <b>No se graba audio ni video y no se capturan imágenes.</b></p>
+    <p>El sistema registra únicamente eventos de integridad del navegador: copiar, cortar, pegar, pérdida de foco, cambio de pestaña/ventana, salida de pantalla completa, hora de inicio, progreso y tiempo de entrega. <b>No se graba audio ni video y no se capturan imágenes.</b></p><p class="warn"><b>Importante:</b> para guardar y entregar el assessment debes tener iniciada una sesión en una cuenta de Google en este navegador.</p>
 
     <div class="grid">
       <label class="field">Nombre completo
@@ -422,6 +422,7 @@ async function send(action){
     await fetch(CONFIG.endpoint,{
       method:"POST",
       mode:"no-cors",
+      credentials:"include",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body:JSON.stringify(p),
       keepalive:true

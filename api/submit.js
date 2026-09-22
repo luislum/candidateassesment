@@ -61,12 +61,26 @@ module.exports = async function handler(req, res) {
     try {
       data = JSON.parse(text);
     } catch {
-      data = { ok: false, error: "Invalid response from storage backend" };
+      console.error("Apps Script returned non-JSON response", {
+        status: upstream.status,
+        contentType: upstream.headers.get("content-type"),
+        preview: text.slice(0, 180)
+      });
+      return res.status(502).json({
+        ok: false,
+        code: "UPSTREAM_NOT_JSON",
+        error: "Google Apps Script no devolvió una respuesta válida. Verifica que el Web App esté desplegado con acceso anónimo y con la versión actual."
+      });
     }
 
     if (!upstream.ok || data.ok !== true) {
+      console.error("Apps Script rejected assessment payload", {
+        status: upstream.status,
+        error: data.error || null
+      });
       return res.status(502).json({
         ok: false,
+        code: "UPSTREAM_REJECTED",
         error: data.error || `Storage backend returned HTTP ${upstream.status}`
       });
     }

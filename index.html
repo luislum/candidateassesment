@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>RESET | Assessment Técnico</title>
+<style>
+:root{
+  --bg:#090d12;--panel:#101721;--panel2:#0c121a;--text:#edf3f8;--muted:#98a6b5;
+  --line:#263241;--accent:#2979ff;--good:#35b56a;--warn:#e3a72f;--bad:#e5534b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:22px 18px 80px}
+.top{position:sticky;top:0;z-index:20;background:rgba(9,13,18,.94);backdrop-filter:blur(10px);padding:14px 0 12px;border-bottom:1px solid rgba(38,50,65,.7)}
+.topline{display:flex;justify-content:space-between;gap:14px;align-items:center}
+.brand{font-weight:900;letter-spacing:.12em;font-size:19px}
+.meta{display:flex;gap:14px;align-items:center;color:var(--muted);font-size:14px}
+.timer{font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+.progress{height:6px;background:#17202b;border-radius:99px;overflow:hidden;margin-top:12px}
+.bar{height:100%;width:0;background:var(--accent);transition:width .2s}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;margin:18px 0;box-shadow:0 8px 30px rgba(0,0,0,.16)}
+.kicker{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:#78a9ff;font-weight:800}
+h1{font-size:31px;line-height:1.15;margin:7px 0 10px}
+h2{font-size:21px;margin:0 0 8px}
+h3{font-size:17px;margin:26px 0 10px}
+p,li{line-height:1.6}
+.muted{color:var(--muted)}
+.notice{padding:14px 15px;border:1px solid #35465a;background:var(--panel2);border-radius:11px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+label.field{display:block;font-size:14px;font-weight:700}
+input[type=text],input[type=email],textarea{
+  width:100%;margin-top:7px;background:#0a1017;border:1px solid var(--line);border-radius:10px;
+  color:var(--text);padding:12px;font:inherit;outline:none
+}
+input:focus,textarea:focus{border-color:#4b8cff;box-shadow:0 0 0 3px rgba(41,121,255,.12)}
+textarea{min-height:145px;resize:vertical}
+.q{padding:18px 0;border-top:1px solid rgba(38,50,65,.7)}
+.q:first-of-type{border-top:0}
+.qtitle{font-weight:800;line-height:1.55;margin-bottom:11px}
+.points{font-size:12px;color:var(--muted);font-weight:600;margin-left:6px}
+.opt{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin:8px 0;background:#0c131b;cursor:pointer}
+.opt:hover{border-color:#3b4c61}
+.check{display:flex;gap:10px;align-items:flex-start;margin:12px 0}
+button{border:0;border-radius:10px;padding:13px 18px;font-weight:800;font-size:15px;cursor:pointer;background:var(--accent);color:white}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.secondary{background:#263244}
+.actions{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted)}
+.badge{display:inline-flex;padding:5px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--muted)}
+pre{white-space:pre-wrap;background:#080d13;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto}
+.warn{color:#ffd479}
+.good{color:#58d68d}
+.errorbox{border-color:#7a3432;background:#1b1112}
+.footer{color:var(--muted);text-align:center;font-size:12px;margin-top:28px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}.meta{font-size:12px;gap:8px}h1{font-size:25px}.card{padding:18px}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="wrap" style="padding-top:0;padding-bottom:0">
+    <div class="topline">
+      <div class="brand">RESET</div>
+      <div class="meta">
+        <span id="saveStatus">No iniciado</span>
+        <span class="timer" id="timer">50:00</span>
+      </div>
+    </div>
+    <div class="progress"><div id="bar" class="bar"></div></div>
+  </div>
+</div>
+
+<main class="wrap">
+  <section id="intro" class="card">
+    <div class="kicker">Proceso de selección</div>
+    <h1>Assessment Técnico – Ingeniero en Desarrollo de Software</h1>
+    <p class="muted">Duración máxima: 50 minutos · Puntaje total: 100 puntos</p>
+
+    <div class="notice">
+      <b>Objetivo.</b> Evaluar razonamiento técnico, integración de sistemas, bases de datos y resolución de problemas. No necesitas conocer Zoho para responder.
+    </div>
+
+    <h3>Reglas de integridad</h3>
+    <p>La evaluación debe realizarse individualmente, sin herramientas de inteligencia artificial, buscadores, documentación externa ni asistencia de terceros.</p>
+    <p>El sistema registra únicamente eventos de integridad del navegador: copiar, cortar, pegar, pérdida de foco, cambio de pestaña/ventana, salida de pantalla completa, hora de inicio, progreso y tiempo de entrega. <b>No se graba audio ni video y no se capturan imágenes.</b></p>
+
+    <div class="grid">
+      <label class="field">Nombre completo
+        <input id="candidateName" type="text" autocomplete="name" maxlength="120">
+      </label>
+      <label class="field">Correo electrónico
+        <input id="candidateEmail" type="email" autocomplete="email" maxlength="160">
+      </label>
+    </div>
+
+    <label class="check">
+      <input id="integrity" type="checkbox">
+      <span>Declaro que realizaré esta evaluación personalmente y acepto el registro de los eventos de integridad indicados arriba.</span>
+    </label>
+
+    <div class="actions">
+      <span class="status">Al comenzar se solicitará pantalla completa.</span>
+      <button id="startBtn" type="button">Comenzar assessment</button>
+    </div>
+  </section>
+
+  <form id="quiz" class="hidden" autocomplete="off">
+    <section class="card">
+      <div class="kicker">1. Programación y lógica</div>
+      <h2>20 puntos</h2>
+
+      <div class="q" data-qid="q1">
+        <div class="qtitle">1. ¿Cuál es el resultado del siguiente pseudocódigo? <span class="points">4 pts</span></div>
+        <pre>total = 0
+
+para i desde 1 hasta 5
+    si i % 2 == 0
+        total = total + i
+
+imprimir(total)</pre>
+        <label class="opt"><input type="radio" name="q1" value="A"> A. 5</label>
+        <label class="opt"><input type="radio" name="q1" value="B"> B. 6</label>
+        <label class="opt"><input type="radio" name="q1" value="C"> C. 9</label>
+        <label class="opt"><input type="radio" name="q1" value="D"> D. 15</label>
+      </div>
+
+      <div class="q" data-qid="q2">
+        <div class="qtitle">2. Observa la siguiente función conceptual. ¿Qué problema podría ocurrir y cómo lo corregirías? <span class="points">6 pts</span></div>
+        <pre>function calculateAverage(values):
+    total = 0
+    for each value in values:
+        total = total + value
+    return total / length(values)</pre>
+        <textarea name="q2" required placeholder="Explica tu análisis y solución."></textarea>
+      </div>
+
+      <div class="q" data-qid="q3">
+        <div class="qtitle">3. Recibes la lista siguiente y necesitas identificar posibles clientes duplicados utilizando el correo electrónico. Describe el algoritmo. <span class="points">10 pts</span></div>
+        <pre>[
+  {id: 1, email: "ana@email.com"},
+  {id: 2, email: "juan@email.com"},
+  {id: 3, email: "ana@email.com"},
+  {id: 4, email: "maria@email.com"}
+]</pre>
+        <textarea name="q3" required placeholder="Puedes usar pseudocódigo, código o una explicación precisa."></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="kicker">2. APIs e integración de sistemas</div>
+      <h2>25 puntos</h2>
+
+      <div class="q" data-qid="q4">
+        <div class="qtitle">4. Una integración que funcionaba normalmente comienza a responder <code>HTTP 401 Unauthorized</code>. El código no fue modificado. ¿Qué revisarías y en qué orden? <span class="points">6 pts</span></div>
+        <textarea name="q4" required></textarea>
+      </div>
+
+      <div class="q" data-qid="q5">
+        <div class="qtitle">5. Tu sistema envía una solicitud para crear una factura. El sistema externo la procesa, pero tu aplicación pierde la conexión antes de recibir respuesta y vuelve a intentarlo. ¿Cómo reducirías o eliminarías el riesgo de crear dos facturas iguales? <span class="points">7 pts</span></div>
+        <textarea name="q5" required></textarea>
+      </div>
+
+      <div class="q" data-qid="q6">
+        <div class="qtitle">6. Un sistema externo envía un webhook por cada pago. En algunos momentos llegan cientos de eventos en pocos minutos. Diseña el flujo considerando recepción, validación, procesamiento, errores, reintentos y eventos duplicados. <span class="points">12 pts</span></div>
+        <textarea name="q6" required></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="kicker">3. Bases de datos</div>
+      <h2>15 puntos</h2>
+
+      <div class="q" data-qid="q7">
+        <div class="qtitle">7. Un CLIENTE puede tener muchas FACTURAS. ¿Qué campo agregarías a FACTURA y qué función tendría? <span class="points">5 pts</span></div>
+        <pre>CLIENTE
+id_cliente
+nombre
+email
+
+FACTURA
+id_factura
+fecha
+monto</pre>
+        <textarea name="q7" required></textarea>
+      </div>
+
+      <div class="q" data-qid="q8">
+        <div class="qtitle">8. Tenemos una tabla <code>clientes(id, nombre, email, activo)</code>. ¿Cómo obtendrías todos los clientes cuyo campo <code>activo</code> sea verdadero? Puedes escribir SQL o explicar la operación. <span class="points">5 pts</span></div>
+        <textarea name="q8" required></textarea>
+      </div>
+
+      <div class="q" data-qid="q9">
+        <div class="qtitle">9. La aplicación comienza a crear clientes con el mismo correo varias veces. Además de corregir el código, ¿qué mecanismo aplicarías en la base de datos para ayudar a impedir duplicados? <span class="points">5 pts</span></div>
+        <textarea name="q9" required></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="kicker">4. Troubleshooting</div>
+      <h2>15 puntos</h2>
+
+      <div class="q" data-qid="q10">
+        <div class="qtitle">10. Una integración procesa ~500 registros diarios. Algunos devuelven <code>500 Internal Server Error</code> y ocasionalmente <code>429 Too Many Requests</code>. ¿Cómo investigarías el problema y qué información buscarías en logs? <span class="points">8 pts</span></div>
+        <textarea name="q10" required></textarea>
+      </div>
+
+      <div class="q" data-qid="q11">
+        <div class="qtitle">11. Un cliente reporta: A) un reporte tarda 15 segundos; B) algunas facturas se crean dos veces; C) quiere cambiar el color de un botón. ¿En qué orden investigarías y por qué? <span class="points">7 pts</span></div>
+        <textarea name="q11" required></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="kicker">5. Caso práctico</div>
+      <h2>20 puntos</h2>
+
+      <div class="q" data-qid="q12">
+        <div class="qtitle">12. Diseña una integración empresarial completa. <span class="points">20 pts</span></div>
+        <p>RESET implementará una solución para una empresa que utiliza un CRM, un sistema externo de facturación y una base de datos de clientes. Cuando una oportunidad pasa a <b>GANADA</b> se debe:</p>
+        <ol>
+          <li>verificar si el cliente existe en facturación;</li>
+          <li>crearlo si no existe;</li>
+          <li>crear una factura;</li>
+          <li>obtener el número de factura;</li>
+          <li>guardar ese número en el CRM;</li>
+          <li>notificar al equipo cuando ocurra un error.</li>
+        </ol>
+        <p>Tu respuesta debe cubrir flujo de información, prevención de duplicados, manejo de estados parciales, seguridad de credenciales/tokens, trazabilidad y al menos una decisión técnica con ventajas y desventajas.</p>
+        <textarea name="q12" required style="min-height:260px"></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="kicker">6. Inglés técnico</div>
+      <h2>5 puntos</h2>
+
+      <div class="q" data-qid="q13">
+        <div class="qtitle">13. Lee el fragmento y explica en español qué ocurre después de una hora, qué debería hacer la aplicación y qué ocurre si el refresh token deja de ser válido. <span class="points">5 pts</span></div>
+        <pre>The access token expires after one hour. When the token expires, the client application must request a new access token using the refresh token. If the refresh token is invalid, the user must authenticate again.</pre>
+        <textarea name="q13" required></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="kicker">7. Experiencia técnica</div>
+      <h2>No puntuable</h2>
+
+      <div class="q" data-qid="q14">
+        <div class="qtitle">14. Indica qué tecnologías has utilizado y en qué contexto.</div>
+        <p class="muted">REST APIs, OAuth 2.0, Webhooks, Python, JavaScript/TypeScript, SQL, PostgreSQL/MySQL, Git/GitHub, Docker, n8n, Zoho CRM, Zoho Creator, Zoho Books, Zoho Flow, Deluge, APIs de IA u otras.</p>
+        <textarea name="q14"></textarea>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="actions">
+        <div>
+          <div id="integritySummary" class="status">Eventos de integridad registrados: 0</div>
+          <div class="status">Tus respuestas se guardan localmente mientras trabajas.</div>
+        </div>
+        <button id="submitBtn" type="button">Finalizar y entregar</button>
+      </div>
+    </section>
+  </form>
+
+  <section id="done" class="card hidden">
+    <div class="kicker">Entrega completada</div>
+    <h1>Assessment recibido</h1>
+    <p>Gracias. Tus respuestas y registros de integridad fueron enviados para revisión.</p>
+    <p class="muted">Puedes cerrar esta ventana.</p>
+  </section>
+
+  <section id="fatal" class="card errorbox hidden">
+    <h2>No se pudo iniciar el assessment</h2>
+    <p id="fatalMessage"></p>
+  </section>
+
+  <div class="footer">RESET · Assessment Técnico</div>
+</main>
+
+<script>
+/*
+  CONFIGURACIÓN:
+  Reemplaza la URL por la URL /exec del Web App de Google Apps Script.
+*/
+const CONFIG = {
+  endpoint: "https://script.google.com/macros/s/AKfycbzgFuLHqFI7qIJ9I2fjwK4bpLNG0dFkYHjfSLeqq_LdEj1h2a3u4IMMhlXteEfR42cp/exec",
+  durationMinutes: 50,
+  checkpointSeconds: 45,
+  version: "RESET-DEV-ASSESSMENT-V2"
+};
+
+const questionIds = Array.from({length:14}, (_,i)=>`q${i+1}`);
+const requiredQuestions = questionIds.slice(0,13);
+const state = {
+  sessionId: null,
+  startedAt: null,
+  submitted: false,
+  events: [],
+  sentEventIds: new Set(),
+  counters: {copy:0,paste:0,cut:0,hidden:0,blur:0,fullscreen_exit:0},
+  timer: null,
+  checkpoint: null
+};
+
+const $ = s => document.querySelector(s);
+const nowIso = () => new Date().toISOString();
+
+function uid(prefix="e"){
+  return `${prefix}_${Date.now().toString(36)}_${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
+}
+function activeQid(){
+  const el = document.activeElement;
+  if(!el) return "";
+  const q = el.closest?.("[data-qid]");
+  return q?.dataset?.qid || "";
+}
+function logEvent(type, detail=""){
+  if(!state.startedAt || state.submitted) return;
+  const ev = {eventId:uid("ev"), timestamp:nowIso(), type, qid:activeQid(), detail:String(detail).slice(0,250)};
+  state.events.push(ev);
+  if(type in state.counters) state.counters[type]++;
+  updateIntegritySummary();
+  persist();
+}
+function updateIntegritySummary(){
+  const c=state.counters;
+  const total=c.copy+c.paste+c.cut+c.hidden+c.blur+c.fullscreen_exit;
+  $("#integritySummary").textContent =
+    `Eventos registrados: ${total} · copy ${c.copy} · paste ${c.paste} · cambio de pestaña ${c.hidden} · pérdida de foco ${c.blur} · salida fullscreen ${c.fullscreen_exit}`;
+}
+function getAnswers(){
+  const out={};
+  questionIds.forEach(qid=>{
+    const radios=document.querySelectorAll(`input[name="${qid}"]`);
+    if(radios.length){
+      out[qid]=document.querySelector(`input[name="${qid}"]:checked`)?.value || "";
+    } else {
+      out[qid]=document.querySelector(`[name="${qid}"]`)?.value?.trim() || "";
+    }
+  });
+  return out;
+}
+function persist(){
+  if(!state.sessionId) return;
+  localStorage.setItem("reset_assessment_state", JSON.stringify({
+    version:CONFIG.version,
+    sessionId:state.sessionId,
+    startedAt:state.startedAt,
+    candidateName:$("#candidateName").value.trim(),
+    candidateEmail:$("#candidateEmail").value.trim(),
+    answers:getAnswers(),
+    events:state.events,
+    counters:state.counters,
+    submitted:state.submitted
+  }));
+}
+function restore(){
+  const raw=localStorage.getItem("reset_assessment_state");
+  if(!raw) return false;
+  try{
+    const saved=JSON.parse(raw);
+    if(saved.version!==CONFIG.version || saved.submitted || !saved.startedAt) return false;
+    state.sessionId=saved.sessionId;
+    state.startedAt=saved.startedAt;
+    state.events=Array.isArray(saved.events)?saved.events:[];
+    state.counters=Object.assign(state.counters,saved.counters||{});
+    $("#candidateName").value=saved.candidateName||"";
+    $("#candidateEmail").value=saved.candidateEmail||"";
+    Object.entries(saved.answers||{}).forEach(([qid,val])=>{
+      const radios=document.querySelectorAll(`input[name="${qid}"]`);
+      if(radios.length){
+        const r=document.querySelector(`input[name="${qid}"][value="${CSS.escape(val)}"]`);
+        if(r) r.checked=true;
+      } else {
+        const t=document.querySelector(`[name="${qid}"]`);
+        if(t) t.value=val;
+      }
+    });
+    $("#intro").classList.add("hidden");
+    $("#quiz").classList.remove("hidden");
+    updateIntegritySummary();
+    return true;
+  }catch(e){ return false; }
+}
+
+function payload(action){
+  const elapsedSeconds = state.startedAt ? Math.max(0,Math.floor((Date.now()-new Date(state.startedAt).getTime())/1000)) : 0;
+  return {
+    action,
+    version:CONFIG.version,
+    sessionId:state.sessionId,
+    candidate:{
+      name:$("#candidateName").value.trim(),
+      email:$("#candidateEmail").value.trim()
+    },
+    startedAt:state.startedAt,
+    sentAt:nowIso(),
+    elapsedSeconds,
+    counters:{...state.counters},
+    answers:getAnswers(),
+    events:state.events.filter(e=>!state.sentEventIds.has(e.eventId)),
+    browser:{
+      userAgent:navigator.userAgent,
+      language:navigator.language,
+      timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+      screen:`${screen.width}x${screen.height}`
+    }
+  };
+}
+
+async function send(action){
+  if(!CONFIG.endpoint.startsWith("https://script.google.com/")){
+    $("#saveStatus").textContent="Endpoint pendiente";
+    return false;
+  }
+  const p=payload(action);
+  try{
+    await fetch(CONFIG.endpoint,{
+      method:"POST",
+      mode:"no-cors",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify(p),
+      keepalive:true
+    });
+    p.events.forEach(e=>state.sentEventIds.add(e.eventId));
+    $("#saveStatus").textContent=action==="submit"?"Entregado":"Guardado";
+    return true;
+  }catch(err){
+    $("#saveStatus").textContent="Guardado local";
+    return false;
+  }
+}
+
+function startTimers(){
+  const duration=CONFIG.durationMinutes*60;
+  function tick(){
+    const elapsed=Math.floor((Date.now()-new Date(state.startedAt).getTime())/1000);
+    const left=Math.max(0,duration-elapsed);
+    const m=Math.floor(left/60),s=left%60;
+    $("#timer").textContent=`${m}:${String(s).padStart(2,"0")}`;
+    $("#bar").style.width=`${Math.min(100,(elapsed/duration)*100)}%`;
+    if(left<=0){ clearInterval(state.timer); finish(true); }
+  }
+  tick();
+  state.timer=setInterval(tick,1000);
+  state.checkpoint=setInterval(()=>{persist();send("checkpoint")},CONFIG.checkpointSeconds*1000);
+}
+
+async function enterFullscreen(){
+  try{
+    if(!document.fullscreenElement && document.documentElement.requestFullscreen){
+      await document.documentElement.requestFullscreen();
+    }
+  }catch(e){}
+}
+
+function validIdentity(){
+  const n=$("#candidateName").value.trim();
+  const e=$("#candidateEmail").value.trim();
+  return n.length>=3 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+}
+
+async function startAssessment(){
+  if(!CONFIG.endpoint.startsWith("https://script.google.com/")){
+    $("#fatalMessage").textContent="El backend de Google Sheets todavía no está configurado. Contacta a RESET antes de iniciar.";
+    $("#fatal").classList.remove("hidden");
+    $("#fatal").scrollIntoView({behavior:"smooth",block:"center"});
+    return;
+  }
+  if(!validIdentity()){alert("Completa un nombre y correo electrónico válidos.");return;}
+  if(!$("#integrity").checked){alert("Debes aceptar la declaración de integridad para comenzar.");return;}
+  state.sessionId=uid("sess");
+  state.startedAt=nowIso();
+  state.events=[];
+  state.counters={copy:0,paste:0,cut:0,hidden:0,blur:0,fullscreen_exit:0};
+  $("#intro").classList.add("hidden");
+  $("#quiz").classList.remove("hidden");
+  await enterFullscreen();
+  logEvent("start","Assessment iniciado");
+  persist();
+  await send("session_start");
+  startTimers();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function firstMissing(){
+  for(const qid of requiredQuestions){
+    const radios=document.querySelectorAll(`input[name="${qid}"]`);
+    let ok=false;
+    if(radios.length) ok=!!document.querySelector(`input[name="${qid}"]:checked`);
+    else ok=(document.querySelector(`[name="${qid}"]`)?.value?.trim()?.length||0)>0;
+    if(!ok) return qid;
+  }
+  return null;
+}
+
+async function finish(auto=false){
+  if(state.submitted) return;
+  const missing=firstMissing();
+  if(missing && !auto){
+    const el=document.querySelector(`[data-qid="${missing}"]`);
+    el?.scrollIntoView({behavior:"smooth",block:"center"});
+    alert(`Falta responder la pregunta ${missing.replace("q","")}.`);
+    return;
+  }
+  $("#submitBtn").disabled=true;
+  logEvent(auto?"time_expired":"submit_clicked", auto?"Tiempo agotado":"Entrega manual");
+  persist();
+  const delivered = await send("submit");
+  if(!delivered){
+    $("#submitBtn").disabled=false;
+    alert("No se pudo confirmar el envío. Tus respuestas siguen guardadas localmente. Verifica tu conexión e intenta nuevamente.");
+    return;
+  }
+  state.submitted=true;
+  persist();
+  clearInterval(state.timer);clearInterval(state.checkpoint);
+  try{if(document.fullscreenElement) await document.exitFullscreen();}catch(e){}
+  $("#quiz").classList.add("hidden");
+  $("#done").classList.remove("hidden");
+  $("#timer").textContent="Finalizado";
+  $("#bar").style.width="100%";
+  localStorage.removeItem("reset_assessment_state");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+// Integridad: no capturamos el contenido del clipboard.
+document.addEventListener("copy",()=>logEvent("copy"));
+document.addEventListener("cut",()=>logEvent("cut"));
+document.addEventListener("paste",()=>logEvent("paste"));
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="hidden") logEvent("hidden","La página dejó de estar visible");
+  else logEvent("visible","La página volvió a estar visible");
+});
+window.addEventListener("blur",()=>logEvent("blur","Ventana perdió foco"));
+window.addEventListener("focus",()=>logEvent("focus","Ventana recuperó foco"));
+document.addEventListener("fullscreenchange",()=>{
+  if(state.startedAt && !state.submitted && !document.fullscreenElement) logEvent("fullscreen_exit","Salió de pantalla completa");
+});
+document.addEventListener("input",()=>{persist();$("#saveStatus").textContent="Guardado local"});
+window.addEventListener("beforeunload",()=>{persist()});
+window.addEventListener("pagehide",()=>{
+  if(state.startedAt && !state.submitted){
+    logEvent("pagehide","Página cerrada/oculta");
+    if(CONFIG.endpoint.startsWith("https://script.google.com/")){
+      try{
+        navigator.sendBeacon(CONFIG.endpoint, new Blob([JSON.stringify(payload("checkpoint"))],{type:"text/plain;charset=utf-8"}));
+      }catch(e){}
+    }
+  }
+});
+
+$("#startBtn").addEventListener("click",startAssessment);
+$("#submitBtn").addEventListener("click",()=>finish(false));
+
+// Prefill opcional: ?name=...&email=...
+const params=new URLSearchParams(location.search);
+if(params.get("name")) $("#candidateName").value=params.get("name");
+if(params.get("email")) $("#candidateEmail").value=params.get("email");
+
+if(restore()){
+  logEvent("resume","Assessment restaurado desde guardado local");
+  startTimers();
+  send("checkpoint");
+}
+</script>
+</body>
+</html>

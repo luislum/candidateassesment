@@ -31,9 +31,11 @@ No toma fotografías, no graba video ni audio.
 1. En Apps Script: **Deploy > New deployment**.
 2. Tipo: **Web app**.
 3. Execute as: **Me**.
-4. Who has access: **Anyone**.
+4. Who has access: **Anyone with a Google account** / **Cualquier usuario con una cuenta de Google**.
 5. Deploy.
 6. Copia la URL que termina en `/exec`.
+
+**Importante:** con esta configuración los candidatos deben tener una sesión iniciada en una cuenta de Google en el mismo navegador. El frontend usa `credentials: "include"` al enviar datos al Web App.
 
 ## 3. Configurar el HTML
 En `index.html`, busca:

@@ -475,16 +475,33 @@ async function startAssessment(){
   }
   if(!validIdentity()){alert("Completa un nombre y correo electrónico válidos.");return;}
   if(!$("#integrity").checked){alert("Debes aceptar la declaración de integridad para comenzar.");return;}
+
+  $("#startBtn").disabled=true;
+  $("#saveStatus").textContent="Validando conexión…";
   state.sessionId=uid("sess");
   state.startedAt=nowIso();
   state.events=[];
   state.counters={copy:0,paste:0,cut:0,hidden:0,blur:0,fullscreen_exit:0};
+  logEvent("start","Assessment iniciado");
+  persist();
+
+  const backendReady = await send("session_start");
+  if(!backendReady){
+    state.sessionId=null;
+    state.startedAt=null;
+    state.events=[];
+    localStorage.removeItem("reset_assessment_state");
+    $("#startBtn").disabled=false;
+    $("#saveStatus").textContent="No iniciado";
+    $("#fatalMessage").textContent="No se pudo conectar con el sistema de recepción. El assessment no comenzará para evitar perder tus respuestas. Contacta a RESET.";
+    $("#fatal").classList.remove("hidden");
+    $("#fatal").scrollIntoView({behavior:"smooth",block:"center"});
+    return;
+  }
+
   $("#intro").classList.add("hidden");
   $("#quiz").classList.remove("hidden");
   await enterFullscreen();
-  logEvent("start","Assessment iniciado");
-  persist();
-  await send("session_start");
   startTimers();
   window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -515,7 +532,7 @@ async function finish(auto=false){
   const delivered = await send("submit");
   if(!delivered){
     $("#submitBtn").disabled=false;
-    alert("No se pudo confirmar el envío. Tus respuestas siguen guardadas localmente. Verifica tu conexión e intenta nuevamente.");
+    alert("No se pudo confirmar el envío. Tus respuestas siguen guardadas localmente. El backend de recepción no respondió correctamente. Contacta a RESET antes de cerrar esta ventana.");
     return;
   }
   state.submitted=true;

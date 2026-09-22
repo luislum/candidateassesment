@@ -1,0 +1,11 @@
+{
+  "name": "reset-candidate-assessment",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@neondatabase/serverless": "^1.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

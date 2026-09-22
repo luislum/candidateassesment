@@ -6,10 +6,15 @@
  * 2) Extensions > Apps Script.
  * 3) Pegar este archivo completo.
  * 4) Ejecutar setup() UNA VEZ desde el editor y autorizar.
- * 5) Deploy > New deployment > Web app.
+ * 5) En Project Settings > Script Properties agregar:
+ *    ASSESSMENT_SHARED_SECRET = el mismo secreto configurado en Vercel.
+ * 6) Deploy > New deployment > Web app.
  *    Execute as: Me
- *    Who has access: Anyone
- * 6) Copiar la URL terminada en /exec y pegarla en CONFIG.endpoint del index.html.
+ *    Who has access: Anyone (incluye usuarios no autenticados).
+ * 7) Guardar la URL terminada en /exec en la variable APPS_SCRIPT_URL de Vercel.
+ *
+ * El navegador NO llama este Web App directamente. Solo /api/submit en Vercel
+ * conoce la URL y agrega el secreto antes de reenviar la solicitud.
  */
 
 const TAB_SESSIONS = 'Sessions';
@@ -49,6 +54,8 @@ function doPost(e) {
     const raw = e && e.postData ? e.postData.contents : '';
     const p = JSON.parse(raw || '{}');
 
+    validateProxySecret_(p);
+    delete p._proxySecret;
     validatePayload_(p);
 
     const ss = openSpreadsheet_();
@@ -64,6 +71,14 @@ function doPost(e) {
     return json_({ok:true, action:p.action, sessionId:p.sessionId});
   } catch (err) {
     return json_({ok:false, error:String(err && err.message ? err.message : err)});
+  }
+}
+
+function validateProxySecret_(p) {
+  const expected = PropertiesService.getScriptProperties().getProperty('ASSESSMENT_SHARED_SECRET');
+  if (!expected) throw new Error('ASSESSMENT_SHARED_SECRET no configurado');
+  if (!p || String(p._proxySecret || '') !== String(expected)) {
+    throw new Error('Unauthorized proxy');
   }
 }
 

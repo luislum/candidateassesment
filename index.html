@@ -85,7 +85,7 @@ pre{white-space:pre-wrap;background:#080d13;border:1px solid var(--line);border-
 
     <h3>Reglas de integridad</h3>
     <p>La evaluación debe realizarse individualmente, sin herramientas de inteligencia artificial, buscadores, documentación externa ni asistencia de terceros.</p>
-    <p>El sistema registra únicamente eventos de integridad del navegador: copiar, cortar, pegar, pérdida de foco, cambio de pestaña/ventana, salida de pantalla completa, hora de inicio, progreso y tiempo de entrega. <b>No se graba audio ni video y no se capturan imágenes.</b></p><p class="warn"><b>Importante:</b> para guardar y entregar el assessment debes tener iniciada una sesión en una cuenta de Google en este navegador.</p>
+    <p>El sistema registra únicamente eventos de integridad del navegador: copiar, cortar, pegar, pérdida de foco, cambio de pestaña/ventana, salida de pantalla completa, hora de inicio, progreso y tiempo de entrega. <b>No se graba audio ni video y no se capturan imágenes.</b></p><p class="muted"><b>No necesitas una cuenta de Google.</b> Puedes participar con cualquier correo electrónico válido.</p>
 
     <div class="grid">
       <label class="field">Nombre completo
@@ -282,12 +282,7 @@ monto</pre>
 </main>
 
 <script>
-/*
-  CONFIGURACIÓN:
-  Reemplaza la URL por la URL /exec del Web App de Google Apps Script.
-*/
-const CONFIG = {
-  endpoint: "https://script.google.com/macros/s/AKfycbzgFuLHqFI7qIJ9I2fjwK4bpLNG0dFkYHjfSLeqq_LdEj1h2a3u4IMMhlXteEfR42cp/exec",
+const CONFIG = {\n  endpoint: "/api/submit",
   durationMinutes: 50,
   checkpointSeconds: 45,
   version: "RESET-DEV-ASSESSMENT-V2"
@@ -413,24 +408,23 @@ function payload(action){
 }
 
 async function send(action){
-  if(!CONFIG.endpoint.startsWith("https://script.google.com/")){
-    $("#saveStatus").textContent="Endpoint pendiente";
-    return false;
-  }
   const p=payload(action);
   try{
-    await fetch(CONFIG.endpoint,{
+    const response = await fetch(CONFIG.endpoint,{
       method:"POST",
-      mode:"no-cors",
-      credentials:"include",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      headers:{"Content-Type":"application/json"},
       body:JSON.stringify(p),
       keepalive:true
     });
+    const result = await response.json().catch(()=>({ok:false}));
+    if(!response.ok || result.ok !== true){
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
     p.events.forEach(e=>state.sentEventIds.add(e.eventId));
     $("#saveStatus").textContent=action==="submit"?"Entregado":"Guardado";
     return true;
   }catch(err){
+    console.error("Assessment backend error", err);
     $("#saveStatus").textContent="Guardado local";
     return false;
   }
@@ -466,8 +460,14 @@ function validIdentity(){
 }
 
 async function startAssessment(){
-  if(!CONFIG.endpoint.startsWith("https://script.google.com/")){
-    $("#fatalMessage").textContent="El backend de Google Sheets todavía no está configurado. Contacta a RESET antes de iniciar.";
+  try{
+    const health = await fetch(CONFIG.endpoint,{method:"GET",cache:"no-store"});
+    const status = await health.json().catch(()=>({ok:false}));
+    if(!health.ok || status.ok !== true || status.configured !== true){
+      throw new Error(status.error || "Backend no configurado");
+    }
+  }catch(err){
+    $("#fatalMessage").textContent="El servicio de recepción del assessment no está disponible en este momento. Contacta a RESET antes de iniciar.";
     $("#fatal").classList.remove("hidden");
     $("#fatal").scrollIntoView({behavior:"smooth",block:"center"});
     return;
@@ -547,11 +547,9 @@ window.addEventListener("beforeunload",()=>{persist()});
 window.addEventListener("pagehide",()=>{
   if(state.startedAt && !state.submitted){
     logEvent("pagehide","Página cerrada/oculta");
-    if(CONFIG.endpoint.startsWith("https://script.google.com/")){
-      try{
-        navigator.sendBeacon(CONFIG.endpoint, new Blob([JSON.stringify(payload("checkpoint"))],{type:"text/plain;charset=utf-8"}));
-      }catch(e){}
-    }
+    try{
+      navigator.sendBeacon(CONFIG.endpoint, new Blob([JSON.stringify(payload("checkpoint"))],{type:"application/json"}));
+    }catch(e){}
   }
 });
 

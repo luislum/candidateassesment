@@ -240,15 +240,17 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     await requestFullscreenSafe();
 
     const newSessionId = sessionId || `sess_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
-    setSessionId(newSessionId);
     const now = Date.now();
-    setTechnicalStartTime(now);
-    setTechnicalSecondsLeft(50 * 60);
 
     try {
-      // Upsert candidate in Firestore
+      const startBatch = writeBatch(db);
       const candRef = doc(db, 'candidates', candidateId);
-      await setDoc(candRef, {
+      const sessionRef = doc(db, 'assessment_sessions', newSessionId);
+      const invRef = doc(db, 'invitations', invitationToken);
+
+      // Candidate, session and invitation state transition are one atomic write.
+      // A failed start therefore cannot leave an orphan session or a consumed link.
+      startBatch.set(candRef, {
         id: candidateId,
         name: candidateName.trim(),
         email: candidateEmail.trim().toLowerCase(),
@@ -256,9 +258,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      // Upsert session
-      const sessionRef = doc(db, 'assessment_sessions', newSessionId);
-      await setDoc(sessionRef, {
+      startBatch.set(sessionRef, {
         sessionId: newSessionId,
         candidateId,
         invitationId: invitationToken,
@@ -282,16 +282,21 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      // Update invitation to in_progress
-      const invRef = doc(db, 'invitations', invitationToken);
-      await updateDoc(invRef, {
+      startBatch.update(invRef, {
         status: 'in_progress',
         usedAt: new Date().toISOString()
       });
 
-      logEvent('start', 'Assessment técnico iniciado');
+      await startBatch.commit();
+
+      setSessionId(newSessionId);
+      setTechnicalStartTime(now);
+      setTechnicalSecondsLeft(50 * 60);
       setPhase('technical_quiz');
       setSaveStatus('Guardado');
+
+      // Fire-and-forget telemetry after the authoritative start commit.
+      void logEvent('start', 'Assessment técnico iniciado');
     } catch (error) {
       console.error('Error starting session:', error);
       alert('Error de conexión al iniciar el assessment. Por favor verifica tu red.');

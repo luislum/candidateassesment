@@ -61,16 +61,17 @@ try {
   const inviteSnap = await assertSucceeds(getDoc(doc(candidateDb, 'invitations', token)));
   if (!inviteSnap.exists()) throw new Error('Invitation was not readable by candidate');
 
-  // 3. Candidate starts the assessment and marks invitation in progress.
-  await assertSucceeds(setDoc(doc(candidateDb, 'candidates', candidateId), {
+  // 3. Candidate starts the assessment atomically, mirroring production.
+  const startBatch = writeBatch(candidateDb);
+  startBatch.set(doc(candidateDb, 'candidates', candidateId), {
     id: candidateId,
     name: 'E2E Candidate',
     email: 'e2e.candidate@reset-corp.com',
     createdAt: now.toISOString(),
     updatedAt: now.toISOString()
-  }, { merge: true }));
+  }, { merge: true });
 
-  await assertSucceeds(setDoc(doc(candidateDb, 'assessment_sessions', sessionId), {
+  startBatch.set(doc(candidateDb, 'assessment_sessions', sessionId), {
     sessionId,
     candidateId,
     invitationId: token,
@@ -92,12 +93,13 @@ try {
       screen: '1920x1080'
     },
     updatedAt: now.toISOString()
-  }, { merge: true }));
+  }, { merge: true });
 
-  await assertSucceeds(updateDoc(doc(candidateDb, 'invitations', token), {
+  startBatch.update(doc(candidateDb, 'invitations', token), {
     status: 'in_progress',
     usedAt: now.toISOString()
-  }));
+  });
+  await assertSucceeds(startBatch.commit());
 
   // 4. Candidate autosaves a response.
   await assertSucceeds(setDoc(doc(candidateDb, 'assessment_answers', `${sessionId}_q1`), {

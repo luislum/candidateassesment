@@ -4,7 +4,6 @@ import {
   EMAIL_RE,
   getOrCreateCandidate,
   getSql,
-  variantFromVersion,
   verifyAdminCode
 } from './_db.js';
 
@@ -113,24 +112,20 @@ export default async function handler(req, res) {
           ) AS work_style_answer_count
         FROM assessment_sessions s
         JOIN candidates c ON c.id = s.candidate_id
-        WHERE s.version LIKE 'RESET-V3-%'
+        WHERE s.version = 'RESET-SWE-V1'
         ORDER BY s.updated_at DESC
         LIMIT 250
       `;
 
       return json(res, 200, {
         ok: true,
-        assessments: rows.map((row) => ({
-          ...row,
-          variant: variantFromVersion(row.version)
-        }))
+        assessments: rows
       });
     }
 
     if (action === 'create_invite') {
       const candidateName = cleanString(body.candidateName, 150);
       const candidateEmail = cleanString(body.candidateEmail, 200).toLowerCase();
-      const variant = ['A', 'B', 'C'].includes(body.variant) ? body.variant : 'A';
 
       if (!candidateName || !EMAIL_RE.test(candidateEmail)) {
         return json(res, 400, { ok: false, error: 'Nombre o correo inválido' });
@@ -138,7 +133,7 @@ export default async function handler(req, res) {
 
       const candidateId = await getOrCreateCandidate(sql, candidateName, candidateEmail);
       const sessionId = createSessionId();
-      const version = `RESET-V3-${variant}`;
+      const version = 'RESET-SWE-V1';
 
       await sql`
         INSERT INTO assessment_sessions (
@@ -161,8 +156,7 @@ export default async function handler(req, res) {
           id: candidateId,
           name: candidateName,
           email: candidateEmail
-        },
-        variant
+        }
       });
     }
 
@@ -200,10 +194,7 @@ export default async function handler(req, res) {
 
       return json(res, 200, {
         ok: true,
-        assessment: {
-          ...sessions[0],
-          variant: variantFromVersion(sessions[0].version)
-        },
+        assessment: sessions[0],
         answers,
         events
       });

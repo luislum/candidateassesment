@@ -11,57 +11,25 @@ export interface TechnicalQuestion {
   rubricHint?: string;
 }
 
-export interface PracticalCaseVariant {
-  id: 'A' | 'B' | 'C';
+export interface PracticalCase {
   title: string;
   scenario: string;
   requirements: string[];
   evaluationCriteria: string;
 }
 
-export const PRACTICAL_CASE_VARIANTS: Record<'A' | 'B' | 'C', PracticalCaseVariant> = {
-  A: {
-    id: 'A',
-    title: 'Variante A: CRM, Facturación Externa y Base de Datos',
-    scenario: 'RESET implementará una solución para una empresa que utiliza un CRM, un sistema externo de facturación y una base de datos de clientes. Cuando una oportunidad pasa a GANADA se debe:',
-    requirements: [
-      '1. Verificar si el cliente existe en facturación;',
-      '2. Crearlo si no existe;',
-      '3. Crear una factura;',
-      '4. Obtener el número de factura;',
-      '5. Guardar ese número en el CRM;',
-      '6. Notificar al equipo cuando ocurra un error.'
-    ],
-    evaluationCriteria: 'Tu respuesta debe cubrir flujo de información, prevención de duplicados, manejo de estados parciales, seguridad de credenciales/tokens, trazabilidad y al menos una decisión técnica con ventajas y desventajas.'
-  },
-  B: {
-    id: 'B',
-    title: 'Variante B: E-Commerce B2B, ERP Empresarial y Pagos a Crédito',
-    scenario: 'RESET implementará una integración para un sistema de e-commerce B2B conectado con un ERP empresarial (SAP/NetSuite) y una pasarela de pagos. Cuando un cliente corporativo confirma una orden de compra con pago a crédito se debe:',
-    requirements: [
-      '1. Verificar límite de crédito y estado fiscal del cliente en el ERP;',
-      '2. Reservar inventario en múltiples almacenes sincronizados;',
-      '3. Generar la pre-factura en el ERP con retenciones aplicables;',
-      '4. Autorizar la línea de crédito o retención en pasarela de pagos;',
-      '5. Actualizar el estado del pedido en la tienda virtual con el número de folio ERP;',
-      '6. Orquestar compensación o rollback automático si algún paso intermedio falla.'
-    ],
-    evaluationCriteria: 'Tu respuesta debe cubrir flujo de información, prevención de duplicados/idempotencia, manejo de estados parciales (patrón saga / compensaciones), seguridad de webhooks y credenciales, trazabilidad y al menos una decisión técnica con ventajas y desventajas.'
-  },
-  C: {
-    id: 'C',
-    title: 'Variante C: Sincronización ATS, Contratos Dinámicos y Firma Digital',
-    scenario: 'RESET implementará una plataforma de sincronización bidireccional entre un portal de empleo propio, un ATS externo (Zoho Recruit) y una plataforma de firma digital (DocuSign/Sign). Cuando un candidato es seleccionado para contratación se debe:',
-    requirements: [
-      '1. Validar que los datos personales y fiscales estén completos en el ATS;',
-      '2. Generar el contrato laboral personalizado a partir de plantilla dinámica;',
-      '3. Enviar solicitud de firma a candidato y apoderado legal vía API;',
-      '4. Recibir webhook de firma completada y archivar documento cifrado;',
-      '5. Actualizar el estado a "Contratado" en el ATS y crear el expediente de empleado en HRIS;',
-      '6. Gestionar reintentos exponenciales ante caídas de API y alertar anomalías al equipo de RRHH.'
-    ],
-    evaluationCriteria: 'Tu respuesta debe cubrir arquitectura de eventos/webhooks, idempotencia, resiliencia ante caídas de proveedores, cifrado y manejo de datos personales sensibles (PII), trazabilidad y al menos una decisión técnica con ventajas y desventajas.'
-  }
+export const PRACTICAL_CASE: PracticalCase = {
+  title: 'Caso práctico: integración CRM, facturación y automatización empresarial',
+  scenario: 'RESET debe implementar una integración para un cliente que utiliza un CRM, un sistema externo de facturación y una base de datos operativa. Cuando una oportunidad cambia a GANADA, el proceso debe ejecutarse de forma confiable y trazable.',
+  requirements: [
+    '1. Verificar mediante API si el cliente ya existe en el sistema de facturación y evitar duplicados;',
+    '2. Crear el cliente si no existe y luego generar la factura correspondiente;',
+    '3. Obtener el identificador o número de factura y actualizar el registro de la oportunidad en el CRM;',
+    '4. Registrar en base de datos el estado de cada paso para poder reanudar el proceso si ocurre una falla;',
+    '5. Manejar autenticación, expiración de tokens, errores HTTP, reintentos y límites de consumo de API;',
+    '6. Notificar al equipo cuando un proceso quede incompleto y permitir un reintento seguro sin duplicar clientes ni facturas.'
+  ],
+  evaluationCriteria: 'Explica la arquitectura y el flujo paso a paso. Debes cubrir validación de datos, diseño de llamadas API, idempotencia, manejo de estados parciales, seguridad de secretos/tokens, persistencia, logs y trazabilidad, estrategia de reintentos, pruebas y al menos una decisión técnica con sus ventajas y desventajas.'
 };
 
 export const TECHNICAL_QUESTIONS: TechnicalQuestion[] = [
@@ -220,11 +188,11 @@ monto`,
     id: 'q12',
     section: '5. Caso práctico',
     points: 20,
-    title: '12. Diseña una integración empresarial completa.',
+    title: '12. Diseña la solución técnica para el siguiente caso realista de integración empresarial.',
     type: 'textarea',
-    placeholder: 'Desarrolla tu solución cubriendo todos los aspectos solicitados.',
+    placeholder: 'Explica arquitectura, flujo, APIs, persistencia, errores, idempotencia, seguridad, pruebas y monitoreo.',
     required: true,
-    rubricHint: 'Evaluar: 1. Flujo claro paso a paso. 2. Manejo de estados parciales y fallos intermedios. 3. Idempotencia y prevención de duplicados. 4. Almacenamiento seguro de tokens/secretos. 5. Trazabilidad/logging estructurado. 6. Decisión técnica con pros y contras fundamentados.'
+    rubricHint: 'Evaluar: 1. Arquitectura y flujo claro. 2. Manejo de estados parciales. 3. Idempotencia. 4. APIs y autenticación. 5. Persistencia y modelo de datos. 6. Reintentos/backoff. 7. Logging/observabilidad. 8. Pruebas. 9. Seguridad de secretos. 10. Decisiones técnicas justificadas.'
   },
 
   // 6. Inglés técnico (5 pts)

@@ -157,11 +157,39 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
             if (parsed.technicalStartTime) setTechnicalStartTime(parsed.technicalStartTime);
             if (parsed.workStyleStartTime) setWorkStyleStartTime(parsed.workStyleStartTime);
             if (parsed.counters) setCounters(parsed.counters);
-            if (parsed.phase && parsed.phase !== 'error' && parsed.phase !== 'all_completed') {
-              setPhase(parsed.phase);
+
+            let restoredPhase = parsed.phase;
+            if (parsed.sessionId) {
+              const sessionSnap = await getDoc(doc(db, 'assessment_sessions', parsed.sessionId));
+              if (sessionSnap.exists()) {
+                const sessionData = sessionSnap.data();
+
+                // Recover the original timer even for localStorage written by an
+                // older frontend version that did not persist technicalStartTime.
+                if (!parsed.technicalStartTime && sessionData.startedAt) {
+                  const serverStart = new Date(sessionData.startedAt).getTime();
+                  if (Number.isFinite(serverStart)) setTechnicalStartTime(serverStart);
+                }
+
+                // Firestore is authoritative after Part 1. If the browser closed
+                // after the batch commit but before React changed screens, resume
+                // at the transition screen instead of trying to edit a submitted session.
+                if (
+                  sessionData.status === 'submitted' &&
+                  (!restoredPhase || restoredPhase === 'intro' || restoredPhase === 'technical_quiz')
+                ) {
+                  restoredPhase = 'part1_done';
+                }
+              }
+            }
+
+            if (restoredPhase && restoredPhase !== 'error' && restoredPhase !== 'all_completed') {
+              setPhase(restoredPhase);
             }
           } catch (e) {
+            console.warn('Unable to restore local assessment state', e);
             localStorage.removeItem(storedKey);
+            restoredSession = false;
           }
         }
 

@@ -1,24 +1,39 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  writeBatch
-} from 'firebase/firestore';
-import { db } from '../firebase';
-import {
   TECHNICAL_QUESTIONS,
   PRACTICAL_CASE_VARIANTS,
   WORK_STYLE_STATEMENTS,
   calculateWorkStyleScores
 } from '../data/questions';
 import { Clock, ShieldAlert, CheckCircle2, ChevronRight, AlertCircle } from 'lucide-react';
-import { decodeSimpleInvite } from '../utils/inviteToken';
 
 interface CandidateAssessmentProps {
   invitationToken: string;
   onExit?: () => void;
+}
+
+async function assessmentPost(body: any) {
+  const response = await fetch('/api/assessment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok !== true) {
+    throw new Error(data.error || ('HTTP ' + response.status));
+  }
+  return data;
+}
+
+async function assessmentGet(token: string) {
+  const response = await fetch('/api/assessment?token=' + encodeURIComponent(token), {
+    cache: 'no-store'
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok !== true) {
+    throw new Error(data.error || ('HTTP ' + response.status));
+  }
+  return data.assessment;
 }
 
 export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
@@ -67,8 +82,8 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   const uid = (prefix = 'ev') =>
     `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
 
-  // Log integrity event (safely stored without exposing clipboard content)
-  const logEvent = useCallback(async (type: string, detail = '') => {
+  // Log integrity event locally; events are sent to Neon with checkpoints/submission.
+  const logEvent = useCallback((type: string, detail = '') => {
     if (!sessionId || phase === 'all_completed' || phase === 'validating') return;
 
     setCounters(prev => {
@@ -79,25 +94,17 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       return next;
     });
 
-    const ev = {
+    eventQueueRef.current.push({
       eventId: uid('ev'),
       sessionId,
       type,
       questionId: lastActiveQidRef.current || null,
       detail: String(detail).slice(0, 300),
       timestamp: new Date().toISOString()
-    };
-
-    eventQueueRef.current.push(ev);
-
-    try {
-      await setDoc(doc(db, 'integrity_events', ev.eventId), ev);
-    } catch (err) {
-      console.warn('Event sync queued locally');
-    }
+    });
   }, [sessionId, phase]);
 
-  // Validate Invitation Token on Mount
+  // Validate the invitation against Neon.
   useEffect(() => {
     async function checkInvitation() {
       if (!invitationToken) {
@@ -107,146 +114,71 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       }
 
       try {
-        const simpleInvite = decodeSimpleInvite(invitationToken);
-        let data: any;
-        let simpleMode = false;
+        const data = await assessmentGet(invitationToken);
 
-        if (simpleInvite) {
-          simpleMode = true;
-          data = {
-            ...simpleInvite,
-            status: 'pending'
-          };
-
-          // A completed work-style record means this self-contained link was already used.
-          const completedSnap = await getDoc(
-            doc(db, 'work_style_assessments', `ws_${simpleInvite.sessionId}`)
-          );
-          if (completedSnap.exists() && completedSnap.data().completed === true) {
-            setErrorMessage('Este enlace de evaluación ya fue utilizado y completado. No se permiten reintentos.');
-            setPhase('error');
-            return;
-          }
-        } else {
-          // Backward compatibility for older invitation links already created in Firestore.
-          const invRef = doc(db, 'invitations', invitationToken);
-          const invSnap = await getDoc(invRef);
-
-          if (!invSnap.exists()) {
-            setErrorMessage('El enlace de evaluación no es válido o no existe.');
-            setPhase('error');
-            return;
-          }
-
-          data = invSnap.data();
-
-          if (data.status === 'completed') {
-            setErrorMessage('Este enlace de evaluación ya fue utilizado y completado. No se permiten reintentos.');
-            setPhase('error');
-            return;
-          }
-        }
-
-        const expiresAt = new Date(data.expiresAt).getTime();
-        if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) {
-          setErrorMessage('Este enlace de evaluación ha expirado. Comunícate con el equipo de RESET.');
+        if (data.status === 'completed') {
+          setErrorMessage('Este enlace de evaluación ya fue utilizado y completado. No se permiten reintentos.');
           setPhase('error');
           return;
         }
 
         setCandidateName(data.candidateName || '');
         setCandidateEmail(data.candidateEmail || '');
-        setCandidateId(data.candidateId || data.candidateEmail);
+        setCandidateId(String(data.candidateId || ''));
         setVariant(data.variant || 'A');
+        setSessionId(data.sessionId || invitationToken);
 
-        if (simpleMode && data.sessionId) {
-          setSessionId(data.sessionId);
-        }
-
-        const storedKey = `reset_assessment_${invitationToken}`;
+        const storedKey = 'reset_assessment_' + invitationToken;
         const local = localStorage.getItem(storedKey);
         let restoredSession = false;
+        let restoredPhase: any = null;
 
         if (local) {
           try {
             const parsed = JSON.parse(local);
-            if (parsed.sessionId) {
-              setSessionId(parsed.sessionId);
+            if (parsed.sessionId === data.sessionId) {
               restoredSession = true;
+              restoredPhase = parsed.phase;
+              if (parsed.technicalAnswers) setTechnicalAnswers(parsed.technicalAnswers);
+              if (parsed.workStyleResponses) setWorkStyleResponses(parsed.workStyleResponses);
+              if (parsed.technicalStartTime) setTechnicalStartTime(parsed.technicalStartTime);
+              if (parsed.workStyleStartTime) setWorkStyleStartTime(parsed.workStyleStartTime);
+              if (parsed.counters) setCounters(parsed.counters);
             }
-            if (parsed.technicalAnswers) setTechnicalAnswers(parsed.technicalAnswers);
-            if (parsed.workStyleResponses) setWorkStyleResponses(parsed.workStyleResponses);
-            if (parsed.technicalStartTime) setTechnicalStartTime(parsed.technicalStartTime);
-            if (parsed.workStyleStartTime) setWorkStyleStartTime(parsed.workStyleStartTime);
-            if (parsed.counters) setCounters(parsed.counters);
-
-            let restoredPhase = parsed.phase;
-            const restoredSessionId = parsed.sessionId || (simpleMode ? data.sessionId : '');
-
-            if (restoredSessionId) {
-              const sessionSnap = await getDoc(doc(db, 'assessment_sessions', restoredSessionId));
-              if (sessionSnap.exists()) {
-                const sessionData = sessionSnap.data();
-
-                if (!parsed.technicalStartTime && sessionData.startedAt) {
-                  const serverStart = new Date(sessionData.startedAt).getTime();
-                  if (Number.isFinite(serverStart)) setTechnicalStartTime(serverStart);
-                }
-
-                if (
-                  sessionData.status === 'submitted' &&
-                  (!restoredPhase || restoredPhase === 'intro' || restoredPhase === 'technical_quiz')
-                ) {
-                  restoredPhase = 'part1_done';
-                }
-              }
-            }
-
-            if (restoredPhase && restoredPhase !== 'error' && restoredPhase !== 'all_completed') {
-              setPhase(restoredPhase);
-            }
-          } catch (e) {
-            console.warn('Unable to restore local assessment state', e);
+          } catch {
             localStorage.removeItem(storedKey);
-            restoredSession = false;
           }
         }
 
-        // For simple self-contained links, a server-side session indicates the link
-        // has already been started. Only allow continuation from the browser that
-        // owns the matching local recovery state.
-        if (simpleMode && !restoredSession && data.sessionId) {
-          const existingSession = await getDoc(doc(db, 'assessment_sessions', data.sessionId));
-          if (existingSession.exists()) {
-            setErrorMessage(
-              'Esta evaluación ya fue iniciada. Continúa desde el navegador donde comenzaste o contacta al equipo de RESET.'
-            );
-            setPhase('error');
-            return;
-          }
+        if (data.status === 'technical_submitted') {
+          setPhase('part1_done');
+          return;
         }
 
-        if (!simpleMode && data.status === 'in_progress' && !restoredSession) {
+        if ((data.status === 'started' || data.status === 'in_progress') && !restoredSession) {
           setErrorMessage(
-            'Este enlace ya fue iniciado en otro navegador o dispositivo. Para proteger la integridad del proceso, continúa desde el navegador donde comenzaste o contacta al equipo de RESET.'
+            'Esta evaluación ya fue iniciada. Continúa desde el navegador donde comenzaste o contacta al equipo de RESET.'
           );
           setPhase('error');
           return;
         }
 
-        if (!restoredSession) setPhase('intro');
-      } catch (err) {
+        if (restoredSession && restoredPhase && restoredPhase !== 'error' && restoredPhase !== 'all_completed') {
+          setPhase(restoredPhase);
+        } else {
+          setPhase('intro');
+        }
+      } catch (err: any) {
         console.error('Error validating invitation:', err);
-        setErrorMessage('No se pudo verificar la invitación. Intenta recargar la página.');
+        setErrorMessage(err?.message || 'No se pudo verificar la invitación. Intenta recargar la página.');
         setPhase('error');
       }
     }
 
-    checkInvitation();
+    void checkInvitation();
   }, [invitationToken]);
 
-  // Persist all resumable state locally. Firestore remains the source of truth
-  // for submitted data, while local storage protects the candidate from reloads.
+  // Persist resumable browser state locally. Neon remains the source of truth.
   useEffect(() => {
     if (!sessionId || phase === 'validating' || phase === 'error' || phase === 'all_completed') return;
 
@@ -298,69 +230,28 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
     await requestFullscreenSafe();
 
-    const newSessionId = sessionId || `sess_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
     const now = Date.now();
 
     try {
-      const startBatch = writeBatch(db);
-      const candRef = doc(db, 'candidates', candidateId);
-      const sessionRef = doc(db, 'assessment_sessions', newSessionId);
-      const simpleMode = decodeSimpleInvite(invitationToken) !== null;
-
-      // Candidate and assessment session are stored centrally in Firestore.
-      // Legacy invitation links also update their invitation document.
-      startBatch.set(candRef, {
-        id: candidateId,
-        name: candidateName.trim(),
-        email: candidateEmail.trim().toLowerCase(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-
-      startBatch.set(sessionRef, {
-        sessionId: newSessionId,
-        candidateId,
-        invitationId: invitationToken,
-        variant,
-        status: 'started',
-        version: 'RESET-V2',
-        startedAt: new Date(now).toISOString(),
-        elapsedSeconds: 0,
-        copyCount: 0,
-        pasteCount: 0,
-        cutCount: 0,
-        hiddenCount: 0,
-        blurCount: 0,
-        fullscreenExitCount: 0,
+      await assessmentPost({
+        action: 'session_start',
+        sessionId,
         browser: {
           userAgent: navigator.userAgent,
           language: navigator.language,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          screen: `${window.screen.width}x${window.screen.height}`
-        },
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+          screen: window.screen.width + 'x' + window.screen.height
+        }
+      });
 
-      if (!simpleMode) {
-        startBatch.update(doc(db, 'invitations', invitationToken), {
-          status: 'in_progress',
-          usedAt: new Date().toISOString()
-        });
-      }
-
-      await startBatch.commit();
-
-      setSessionId(newSessionId);
       setTechnicalStartTime(now);
       setTechnicalSecondsLeft(50 * 60);
       setPhase('technical_quiz');
       setSaveStatus('Guardado');
-
-      // Fire-and-forget telemetry after the authoritative start commit.
-      void logEvent('start', 'Assessment técnico iniciado');
+      logEvent('start', 'Assessment técnico iniciado');
     } catch (error) {
       console.error('Error starting session:', error);
-      alert('Error de conexión al iniciar el assessment. Por favor verifica tu red.');
+      alert('No se pudo iniciar la evaluación. Verifica tu conexión e intenta nuevamente.');
     }
   };
 
@@ -394,54 +285,40 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
     return () => clearInterval(interval);
   }, [phase, workStyleStartTime]);
 
-  // Autosave Technical Answers to Firestore
-  const autosaveToFirestore = useCallback(async () => {
+  // Autosave Technical Answers to Neon
+  const autosaveToNeon = useCallback(async () => {
     if (!sessionId || phase !== 'technical_quiz') return;
     setSaveStatus('Guardando...');
 
     try {
       const elapsed = technicalStartTime ? Math.floor((Date.now() - technicalStartTime) / 1000) : 0;
-      const sessionRef = doc(db, 'assessment_sessions', sessionId);
+      const pendingEvents = [...eventQueueRef.current];
 
-      await setDoc(sessionRef, {
+      await assessmentPost({
+        action: 'checkpoint',
+        sessionId,
         elapsedSeconds: elapsed,
-        status: 'in_progress',
-        copyCount: counters.copy,
-        pasteCount: counters.paste,
-        cutCount: counters.cut,
-        hiddenCount: counters.hidden,
-        blurCount: counters.blur,
-        fullscreenExitCount: counters.fullscreen_exit,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+        counters,
+        answers: technicalAnswers,
+        events: pendingEvents
+      });
 
-      // Save each question answer in assessment_answers
-      for (const [qid, ans] of Object.entries(technicalAnswers)) {
-        if (!ans) continue;
-        const answerId = `${sessionId}_${qid}`;
-
-        await setDoc(doc(db, 'assessment_answers', answerId), {
-          id: answerId,
-          sessionId,
-          questionId: qid,
-          answer: String(ans).slice(0, 50000),
-          recordedAt: new Date().toISOString()
-        }, { merge: true });
+      if (pendingEvents.length) {
+        eventQueueRef.current = eventQueueRef.current.slice(pendingEvents.length);
       }
-
       setSaveStatus('Guardado');
     } catch (e) {
       console.warn('Autosave sync delayed', e);
       setSaveStatus('Guardado local');
     }
-  }, [sessionId, phase, technicalAnswers, technicalStartTime, counters, invitationToken, candidateName, candidateEmail, workStyleResponses]);
+  }, [sessionId, phase, technicalAnswers, technicalStartTime, counters]);
 
   // Periodic Autosave every 25 seconds
   useEffect(() => {
     if (phase !== 'technical_quiz') return;
-    const interval = setInterval(autosaveToFirestore, 25000);
+    const interval = setInterval(autosaveToNeon, 25000);
     return () => clearInterval(interval);
-  }, [phase, autosaveToFirestore]);
+  }, [phase, autosaveToNeon]);
 
   // Browser Integrity Event Listeners
   useEffect(() => {
@@ -490,11 +367,10 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   // Finish Technical Assessment and Proceed to Part 2
   const handleFinishTechnical = async (auto = false) => {
     if (!auto) {
-      // Validate required answers
       for (const q of TECHNICAL_QUESTIONS) {
         if (q.required && (!technicalAnswers[q.id] || !technicalAnswers[q.id].trim())) {
-          alert(`Falta responder la pregunta ${q.id.replace('q', '')}: ${q.title.slice(0, 50)}...`);
-          const el = document.getElementById(`q_wrapper_${q.id}`);
+          alert('Falta responder la pregunta ' + q.id.replace('q', '') + ': ' + q.title.slice(0, 50) + '...');
+          const el = document.getElementById('q_wrapper_' + q.id);
           el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return;
         }
@@ -505,40 +381,18 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
     try {
       const elapsed = technicalStartTime ? Math.floor((Date.now() - technicalStartTime) / 1000) : 0;
-      const batch = writeBatch(db);
+      const pendingEvents = [...eventQueueRef.current];
 
-      // Candidate writes raw answers and telemetry only. Scoring is calculated
-      // by the authorized reviewer, so candidate-side writes comply with the
-      // Firestore security rules and cannot self-assign a score.
-      batch.set(doc(db, 'assessment_sessions', sessionId), {
-        status: 'submitted',
-        submittedAt: new Date().toISOString(),
+      await assessmentPost({
+        action: 'technical_submit',
+        sessionId,
         elapsedSeconds: elapsed,
-        evaluationStatus: 'pending_review',
-        copyCount: counters.copy,
-        pasteCount: counters.paste,
-        cutCount: counters.cut,
-        hiddenCount: counters.hidden,
-        blurCount: counters.blur,
-        fullscreenExitCount: counters.fullscreen_exit,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+        counters,
+        answers: technicalAnswers,
+        events: pendingEvents
+      });
 
-      for (const [qid, ans] of Object.entries(technicalAnswers)) {
-        const answerId = `${sessionId}_${qid}`;
-        batch.set(doc(db, 'assessment_answers', answerId), {
-          id: answerId,
-          sessionId,
-          questionId: qid,
-          answer: String(ans || '').slice(0, 50000),
-          recordedAt: new Date().toISOString()
-        }, { merge: true });
-      }
-
-      // One atomic commit prevents a "submitted" session with missing answers,
-      // or saved answers with an unsubmitted session.
-      await batch.commit();
-
+      eventQueueRef.current = [];
       setSaveStatus('Entregado');
       setPhase('part1_done');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -560,11 +414,10 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
   // Submit Work Style Profile
   const handleSubmitWorkStyle = async () => {
-    // Check if all 30 statements are answered
     for (let i = 1; i <= 30; i++) {
       if (!workStyleResponses[i]) {
-        alert(`Falta responder la afirmación número ${i}. Por favor responde todas las afirmaciones.`);
-        const el = document.getElementById(`stmt_${i}`);
+        alert('Falta responder la afirmación número ' + i + '. Por favor responde todas las afirmaciones.');
+        const el = document.getElementById('stmt_' + i);
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
@@ -572,35 +425,31 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
     try {
       const calculation = calculateWorkStyleScores(workStyleResponses);
-      const elapsed = workStyleStartTime ? Math.floor((Date.now() - workStyleStartTime) / 1000) : workStyleSecondsElapsed;
-      const assessmentId = `ws_${sessionId}`;
-      const batch = writeBatch(db);
+      const workStyleElapsed = workStyleStartTime
+        ? Math.floor((Date.now() - workStyleStartTime) / 1000)
+        : workStyleSecondsElapsed;
+      const technicalElapsed = technicalStartTime
+        ? Math.floor((Date.now() - technicalStartTime) / 1000)
+        : 0;
 
-      batch.set(doc(db, 'work_style_assessments', assessmentId), {
-        id: assessmentId,
-        candidateId,
+      const answers: Record<string, any> = {};
+      for (let i = 1; i <= 30; i++) {
+        answers['ws' + i] = workStyleResponses[i];
+      }
+      answers.ws_dimensions = calculation.dimensionScores;
+      answers.ws_consistency = calculation.consistencyFlags;
+
+      await assessmentPost({
+        action: 'work_style_submit',
         sessionId,
-        invitationId: invitationToken,
-        startedAt: new Date(workStyleStartTime || Date.now()).toISOString(),
-        submittedAt: new Date().toISOString(),
-        elapsedSeconds: elapsed,
-        assessmentVersion: 'RESET-WORK-STYLE-V1',
-        responses: workStyleResponses,
-        dimensionScores: calculation.dimensionScores,
-        consistencyFlags: calculation.consistencyFlags,
-        completed: true
+        elapsedSeconds: technicalElapsed + workStyleElapsed,
+        counters,
+        answers,
+        events: [...eventQueueRef.current]
       });
 
-      if (decodeSimpleInvite(invitationToken) === null) {
-        batch.update(doc(db, 'invitations', invitationToken), {
-          status: 'completed',
-          usedAt: new Date().toISOString()
-        });
-      }
-
-      await batch.commit();
-
-      localStorage.removeItem(`reset_assessment_${invitationToken}`);
+      eventQueueRef.current = [];
+      localStorage.removeItem('reset_assessment_' + invitationToken);
 
       if (document.fullscreenElement && document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});

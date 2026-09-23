@@ -41,11 +41,6 @@ export function createSessionId() {
   return 'sess_' + randomBytes(24).toString('base64url');
 }
 
-export function variantFromVersion(version) {
-  const match = String(version || '').match(/RESET-V3-([ABC])/);
-  return match ? match[1] : 'A';
-}
-
 export async function getOrCreateCandidate(sql, name, email) {
   let rows = await sql`
     SELECT id

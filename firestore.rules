@@ -12,10 +12,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'l.lum@reset-corp.com' ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-      );
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admin_sessions/$(request.auth.uid));
     }
 
     function isValidId(id) {
@@ -30,7 +28,20 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // Admins Collection
+    // Simple code-based admin session.
+    // The browser sends only the SHA-256 hash of the access code. The plaintext
+    // access code is never stored in the repository or Firestore.
+    match /admin_sessions/{sessionId} {
+      allow create: if isSignedIn() &&
+        request.auth.uid == sessionId &&
+        incoming().keys().hasOnly(['codeHash', 'createdAt']) &&
+        incoming().codeHash == '756972610c98f6c4dc5c867d5f8c1bc429a5b48d284eeb763a8343702d50675e';
+
+      allow get, delete: if isSignedIn() && request.auth.uid == sessionId;
+      allow list, update: if false;
+    }
+
+    // Legacy admin records remain protected but are no longer required.
     match /admins/{adminId} {
       allow read, write: if isAdmin();
     }

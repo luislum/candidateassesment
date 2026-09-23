@@ -29,3 +29,6 @@ jobs:
 
       - name: Run Firestore E2E
         run: npx firebase emulators:exec --only firestore "node tests/firestore-e2e.mjs"
+
+      - name: Run production smoke test
+        run: node tests/production-smoke.mjs

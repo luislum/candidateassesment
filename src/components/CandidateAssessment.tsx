@@ -14,6 +14,7 @@ import {
   calculateWorkStyleScores
 } from '../data/questions';
 import { Clock, ShieldAlert, CheckCircle2, ChevronRight, AlertCircle } from 'lucide-react';
+import { decodeSimpleInvite } from '../utils/inviteToken';
 
 interface CandidateAssessmentProps {
   invitationToken: string;
@@ -106,41 +107,62 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       }
 
       try {
-        const invRef = doc(db, 'invitations', invitationToken);
-        const invSnap = await getDoc(invRef);
+        const simpleInvite = decodeSimpleInvite(invitationToken);
+        let data: any;
+        let simpleMode = false;
 
-        if (!invSnap.exists()) {
-          setErrorMessage('El enlace de evaluación no es válido o no existe.');
-          setPhase('error');
-          return;
+        if (simpleInvite) {
+          simpleMode = true;
+          data = {
+            ...simpleInvite,
+            status: 'pending'
+          };
+
+          // A completed work-style record means this self-contained link was already used.
+          const completedSnap = await getDoc(
+            doc(db, 'work_style_assessments', `ws_${simpleInvite.sessionId}`)
+          );
+          if (completedSnap.exists() && completedSnap.data().completed === true) {
+            setErrorMessage('Este enlace de evaluación ya fue utilizado y completado. No se permiten reintentos.');
+            setPhase('error');
+            return;
+          }
+        } else {
+          // Backward compatibility for older invitation links already created in Firestore.
+          const invRef = doc(db, 'invitations', invitationToken);
+          const invSnap = await getDoc(invRef);
+
+          if (!invSnap.exists()) {
+            setErrorMessage('El enlace de evaluación no es válido o no existe.');
+            setPhase('error');
+            return;
+          }
+
+          data = invSnap.data();
+
+          if (data.status === 'completed') {
+            setErrorMessage('Este enlace de evaluación ya fue utilizado y completado. No se permiten reintentos.');
+            setPhase('error');
+            return;
+          }
         }
 
-        const data = invSnap.data();
-
-        // Check expiration
         const expiresAt = new Date(data.expiresAt).getTime();
-        if (Date.now() > expiresAt) {
+        if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) {
           setErrorMessage('Este enlace de evaluación ha expirado. Comunícate con el equipo de RESET.');
           setPhase('error');
           return;
         }
 
-        // Check if already completed
-        if (data.status === 'completed') {
-          setErrorMessage('Este enlace de evaluación ya fue utilizado y completado. No se permiten reintentos.');
-          setPhase('error');
-          return;
-        }
-
-        // Populate invitation info
         setCandidateName(data.candidateName || '');
         setCandidateEmail(data.candidateEmail || '');
         setCandidateId(data.candidateId || data.candidateEmail);
         setVariant(data.variant || 'A');
 
-        // Restore the candidate's in-progress state from this browser.
-        // This keeps timers and answers consistent after reloads and prevents a
-        // single-use invitation from being started in a second browser/device.
+        if (simpleMode && data.sessionId) {
+          setSessionId(data.sessionId);
+        }
+
         const storedKey = `reset_assessment_${invitationToken}`;
         const local = localStorage.getItem(storedKey);
         let restoredSession = false;
@@ -159,21 +181,18 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
             if (parsed.counters) setCounters(parsed.counters);
 
             let restoredPhase = parsed.phase;
-            if (parsed.sessionId) {
-              const sessionSnap = await getDoc(doc(db, 'assessment_sessions', parsed.sessionId));
+            const restoredSessionId = parsed.sessionId || (simpleMode ? data.sessionId : '');
+
+            if (restoredSessionId) {
+              const sessionSnap = await getDoc(doc(db, 'assessment_sessions', restoredSessionId));
               if (sessionSnap.exists()) {
                 const sessionData = sessionSnap.data();
 
-                // Recover the original timer even for localStorage written by an
-                // older frontend version that did not persist technicalStartTime.
                 if (!parsed.technicalStartTime && sessionData.startedAt) {
                   const serverStart = new Date(sessionData.startedAt).getTime();
                   if (Number.isFinite(serverStart)) setTechnicalStartTime(serverStart);
                 }
 
-                // Firestore is authoritative after Part 1. If the browser closed
-                // after the batch commit but before React changed screens, resume
-                // at the transition screen instead of trying to edit a submitted session.
                 if (
                   sessionData.status === 'submitted' &&
                   (!restoredPhase || restoredPhase === 'intro' || restoredPhase === 'technical_quiz')
@@ -193,7 +212,21 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
           }
         }
 
-        if (data.status === 'in_progress' && !restoredSession) {
+        // For simple self-contained links, a server-side session indicates the link
+        // has already been started. Only allow continuation from the browser that
+        // owns the matching local recovery state.
+        if (simpleMode && !restoredSession && data.sessionId) {
+          const existingSession = await getDoc(doc(db, 'assessment_sessions', data.sessionId));
+          if (existingSession.exists()) {
+            setErrorMessage(
+              'Esta evaluación ya fue iniciada. Continúa desde el navegador donde comenzaste o contacta al equipo de RESET.'
+            );
+            setPhase('error');
+            return;
+          }
+        }
+
+        if (!simpleMode && data.status === 'in_progress' && !restoredSession) {
           setErrorMessage(
             'Este enlace ya fue iniciado en otro navegador o dispositivo. Para proteger la integridad del proceso, continúa desde el navegador donde comenzaste o contacta al equipo de RESET.'
           );
@@ -201,9 +234,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
           return;
         }
 
-        if (!restoredSession) {
-          setPhase('intro');
-        }
+        if (!restoredSession) setPhase('intro');
       } catch (err) {
         console.error('Error validating invitation:', err);
         setErrorMessage('No se pudo verificar la invitación. Intenta recargar la página.');
@@ -274,10 +305,10 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       const startBatch = writeBatch(db);
       const candRef = doc(db, 'candidates', candidateId);
       const sessionRef = doc(db, 'assessment_sessions', newSessionId);
-      const invRef = doc(db, 'invitations', invitationToken);
+      const simpleMode = decodeSimpleInvite(invitationToken) !== null;
 
-      // Candidate, session and invitation state transition are one atomic write.
-      // A failed start therefore cannot leave an orphan session or a consumed link.
+      // Candidate and assessment session are stored centrally in Firestore.
+      // Legacy invitation links also update their invitation document.
       startBatch.set(candRef, {
         id: candidateId,
         name: candidateName.trim(),
@@ -310,10 +341,12 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      startBatch.update(invRef, {
-        status: 'in_progress',
-        usedAt: new Date().toISOString()
-      });
+      if (!simpleMode) {
+        startBatch.update(doc(db, 'invitations', invitationToken), {
+          status: 'in_progress',
+          usedAt: new Date().toISOString()
+        });
+      }
 
       await startBatch.commit();
 
@@ -558,13 +591,13 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         completed: true
       });
 
-      batch.update(doc(db, 'invitations', invitationToken), {
-        status: 'completed',
-        usedAt: new Date().toISOString()
-      });
+      if (decodeSimpleInvite(invitationToken) === null) {
+        batch.update(doc(db, 'invitations', invitationToken), {
+          status: 'completed',
+          usedAt: new Date().toISOString()
+        });
+      }
 
-      // The work-style result and the invitation completion marker commit
-      // together so the admin panel never sees a partially completed result.
       await batch.commit();
 
       localStorage.removeItem(`reset_assessment_${invitationToken}`);

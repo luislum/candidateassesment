@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CandidateAssessment } from './components/CandidateAssessment';
-import { AdminDashboard } from './components/AdminDashboard';
+import { SimpleAdminDashboard } from './components/SimpleAdminDashboard';
 import { Shield, UserCheck, Play, ArrowRight, Lock } from 'lucide-react';
 
 export function App() {
@@ -55,7 +55,7 @@ export function App() {
 
   // If Admin Dashboard is active
   if (showAdmin) {
-    return <AdminDashboard onOpenCandidateLink={handleOpenCandidateLink} />;
+    return <SimpleAdminDashboard onOpenCandidateLink={handleOpenCandidateLink} />;
   }
 
   // Default Landing / Portal Router

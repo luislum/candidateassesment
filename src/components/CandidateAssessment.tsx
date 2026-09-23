@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   TECHNICAL_QUESTIONS,
-  PRACTICAL_CASE_VARIANTS,
+  PRACTICAL_CASE,
   WORK_STYLE_STATEMENTS,
   calculateWorkStyleScores
 } from '../data/questions';
@@ -48,7 +48,6 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
   const [candidateName, setCandidateName] = useState('');
   const [candidateEmail, setCandidateEmail] = useState('');
   const [candidateId, setCandidateId] = useState('');
-  const [variant, setVariant] = useState<'A' | 'B' | 'C'>('A');
   const [sessionId, setSessionId] = useState('');
 
   // Integrity Declaration
@@ -125,7 +124,6 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         setCandidateName(data.candidateName || '');
         setCandidateEmail(data.candidateEmail || '');
         setCandidateId(String(data.candidateId || ''));
-        setVariant(data.variant || 'A');
         setSessionId(data.sessionId || invitationToken);
 
         const storedKey = 'reset_assessment_' + invitationToken;
@@ -516,17 +514,17 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
           <div className="bg-[#101721] border border-[#263241] rounded-2xl p-6 sm:p-8 shadow-xl">
             <div className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-2">
-              Assessment Técnico – Ingeniero en Desarrollo de Software
+              Assessment – Ingeniero en Desarrollo de Software / Sistemas
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-50 mb-3">
-              Evaluación Técnica y de Estilo de Trabajo
+              Evaluación Técnica y de Personalidad Laboral
             </h1>
             <p className="text-slate-400 text-sm mb-6">
-              Duración estimada: 50 min (Técnica) + 7–10 min (Perfil de Trabajo) · Puntaje técnico: 100 puntos
+              Duración estimada: 50 min (Técnica) + 7–10 min (Personalidad Laboral) · Puntaje técnico: 100 puntos
             </p>
 
             <div className="bg-[#0c121a] border border-[#263241] rounded-xl p-4 mb-6 text-sm text-slate-300 leading-relaxed">
-              <strong className="text-slate-100">Objetivo.</strong> Evaluar razonamiento técnico, integración de sistemas, bases de datos y resolución de problemas. No necesitas conocer herramientas propietarias específicas para responder.
+              <strong className="text-slate-100">Objetivo.</strong> Evaluar razonamiento lógico, desarrollo de software, APIs, bases de datos, integración de sistemas, troubleshooting, automatización y criterio técnico aplicado a proyectos empresariales. No necesitas conocer herramientas propietarias específicas para responder.
             </div>
 
             <div className="space-y-3 mb-6 text-sm text-slate-300 leading-relaxed">
@@ -599,8 +597,6 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
   // --- RENDER TECHNICAL QUIZ SCREEN ---
   if (phase === 'technical_quiz') {
-    const currentVariant = PRACTICAL_CASE_VARIANTS[variant] || PRACTICAL_CASE_VARIANTS.A;
-
     return (
       <div className="min-h-screen bg-[#090d12] text-[#edf3f8]">
         {/* Sticky Header with Timer & Progress */}
@@ -641,7 +637,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
               Candidato: <strong className="text-slate-200">{candidateName}</strong> ({candidateEmail})
             </div>
             <div>
-              Caso Práctico Asignado: <span className="text-blue-400 font-bold">{currentVariant.title}</span>
+              Evaluación: <span className="text-blue-400 font-bold">Ingeniero en Desarrollo de Software / Sistemas</span>
             </div>
           </div>
 
@@ -676,20 +672,20 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
                         >
                           <div className="flex items-baseline justify-between">
                             <h3 className="font-bold text-slate-100 text-base leading-snug">
-                              12. {currentVariant.title}
+                              12. {PRACTICAL_CASE.title}
                             </h3>
                             <span className="text-xs text-slate-400 font-semibold">{q.points} pts</span>
                           </div>
 
                           <div className="bg-[#0a1017] border border-[#263241] rounded-xl p-4 text-sm text-slate-300 space-y-3">
-                            <p>{currentVariant.scenario}</p>
+                            <p>{PRACTICAL_CASE.scenario}</p>
                             <ul className="list-none space-y-1.5 pl-1 text-slate-200">
-                              {currentVariant.requirements.map((req, rIdx) => (
+                              {PRACTICAL_CASE.requirements.map((req, rIdx) => (
                                 <li key={rIdx} className="text-xs sm:text-sm">{req}</li>
                               ))}
                             </ul>
                             <p className="text-xs text-slate-400 border-t border-[#263241] pt-3">
-                              {currentVariant.evaluationCriteria}
+                              {PRACTICAL_CASE.evaluationCriteria}
                             </p>
                           </div>
 
@@ -784,7 +780,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
           {/* Bottom Actions Card */}
           <div className="bg-[#101721] border border-[#263241] rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-xs text-slate-400">
-              Al finalizar esta sección avanzarás a la segunda parte: Perfil de Estilo de Trabajo.
+              Al finalizar esta sección avanzarás a la segunda parte: Perfil de Personalidad Laboral y Estilo de Trabajo.
             </div>
             <button
               type="button"
@@ -824,10 +820,10 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
               Parte 2 de 2
             </div>
             <div className="text-lg font-bold text-slate-100">
-              Perfil de Estilo de Trabajo – RESET
+              Perfil de Personalidad Laboral y Estilo de Trabajo – RESET
             </div>
             <p className="text-xs text-slate-300">
-              Tiempo estimado: 7–10 minutos. Este módulo cuenta con un temporizador independiente y consta de 30 afirmaciones breves.
+              Tiempo estimado: 7–10 minutos. Este módulo contiene 30 afirmaciones sobre personalidad laboral, hábitos de ejecución, resolución de problemas, aprendizaje, colaboración, autonomía y manejo de ambigüedad. No existen respuestas correctas o incorrectas.
             </p>
           </div>
 
@@ -854,7 +850,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
             <div className="flex items-center gap-3">
               <span className="text-lg font-black tracking-widest text-blue-500">RESET</span>
               <span className="text-xs text-slate-400 border-l border-[#263241] pl-3">
-                Parte 2 de 2: Perfil de Estilo de Trabajo
+                Parte 2 de 2: Perfil de Personalidad Laboral y Estilo de Trabajo
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs font-mono bg-[#101721] px-3 py-1.5 rounded-lg border border-[#263241] text-slate-300">

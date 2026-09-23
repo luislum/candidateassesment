@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   collection,
   getDocs,
+  getDoc,
   doc,
   setDoc,
   updateDoc,
@@ -47,12 +48,9 @@ interface AdminDashboardProps {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateLink }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isAuthorizedAdmin, setIsAuthorizedAdmin] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-
-  // Admin Passcode fallback or Google Login
-  const [adminPasscode, setAdminPasscode] = useState('');
-  const [passcodeAuthenticated, setPasscodeAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   // Data lists
   const [invitations, setInvitations] = useState<any[]>([]);
@@ -84,15 +82,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
   const [savingScores, setSavingScores] = useState(false);
   const [scoresSavedNotification, setScoresSavedNotification] = useState(false);
 
-  // Monitor Auth
+  // Monitor Auth and verify that the signed-in account is actually allowed
+  // by the same Firestore policy used by the database.
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged((user) => {
+    const unsub = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
-      if (user && (user.email === 'l.lum@reset-corp.com' || user.email?.endsWith('@reset-corp.com'))) {
-        setIsSuperAdmin(true);
+      setAuthChecking(true);
+      setAuthError('');
+
+      if (!user) {
+        setIsAuthorizedAdmin(false);
+        setAuthChecking(false);
+        return;
       }
-      setAuthChecking(false);
+
+      if (user.email === 'l.lum@reset-corp.com') {
+        setIsAuthorizedAdmin(true);
+        setAuthChecking(false);
+        return;
+      }
+
+      try {
+        const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+        setIsAuthorizedAdmin(adminSnap.exists());
+        if (!adminSnap.exists()) {
+          setAuthError('Esta cuenta de Google no tiene permisos administrativos en RESET Candidate Assessment.');
+        }
+      } catch (err) {
+        console.error('Admin authorization check failed:', err);
+        setIsAuthorizedAdmin(false);
+        setAuthError('Esta cuenta de Google no tiene permisos administrativos en RESET Candidate Assessment.');
+      } finally {
+        setAuthChecking(false);
+      }
     });
+
     return () => unsub();
   }, []);
 
@@ -129,10 +153,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
   };
 
   useEffect(() => {
-    if (currentUser || passcodeAuthenticated) {
+    if (currentUser && isAuthorizedAdmin) {
       fetchData();
     }
-  }, [currentUser, passcodeAuthenticated]);
+  }, [currentUser, isAuthorizedAdmin]);
 
   // Load detailed session answers and integrity events
   const loadSessionDetail = async (sessId: string) => {
@@ -172,21 +196,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
 
   // Google Login
   const handleGoogleLogin = async () => {
+    setAuthError('');
     try {
-      const res = await signInWithPopup(auth, googleProvider);
-      setCurrentUser(res.user);
-    } catch (err) {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err: any) {
       console.error('Login error:', err);
-    }
-  };
-
-  // Passcode verification for direct team access
-  const handlePasscodeLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminPasscode === 'reset2025' || adminPasscode === 'RESET-ADMIN-KEY') {
-      setPasscodeAuthenticated(true);
-    } else {
-      alert('Código de acceso no válido.');
+      if (err?.code === 'auth/unauthorized-domain') {
+        setAuthError(
+          'Firebase bloqueó este dominio. Agrega candidateassesment.vercel.app (y cualquier dominio personalizado) en Firebase Authentication > Settings > Authorized domains.'
+        );
+      } else if (err?.code === 'auth/popup-closed-by-user') {
+        setAuthError('El inicio de sesión fue cancelado antes de completarse.');
+      } else {
+        setAuthError('No se pudo iniciar sesión con Google. Revisa la configuración de Firebase Authentication.');
+      }
     }
   };
 
@@ -284,10 +307,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
     }
   };
 
-  const isAccessAuthorized = currentUser !== null || passcodeAuthenticated;
+  const isAccessAuthorized = currentUser !== null && isAuthorizedAdmin;
 
   // --- LOGIN / PROTECTED SCREEN ---
-  if (!isAccessAuthorized && !authChecking) {
+  if (!isAccessAuthorized) {
+    if (authChecking) {
+      return (
+        <div className="min-h-screen bg-[#090d12] text-[#edf3f8] flex items-center justify-center p-6">
+          <div className="text-center">
+            <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-sm text-slate-300">Verificando acceso administrativo...</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-[#090d12] text-[#edf3f8] flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-[#101721] border border-[#263241] rounded-2xl p-8 shadow-2xl space-y-6">
@@ -297,10 +331,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
             </div>
             <div className="text-xs uppercase tracking-widest text-blue-400 font-bold mb-1">RESET CORP</div>
             <h1 className="text-xl font-bold text-slate-100">Portal Administrativo</h1>
-            <p className="text-xs text-slate-400 mt-1">Acceso restringido para el equipo de selección técnica</p>
+            <p className="text-xs text-slate-400 mt-1">
+              El panel usa autenticación real de Firebase; no existen claves administrativas en el navegador.
+            </p>
           </div>
 
-          <div className="space-y-4">
+          {authError && (
+            <div className="bg-red-950/30 border border-red-800/60 rounded-xl p-3 text-xs text-red-200 leading-relaxed">
+              {authError}
+            </div>
+          )}
+
+          {currentUser ? (
+            <div className="space-y-3">
+              <div className="bg-[#0a1017] border border-[#263241] rounded-xl p-3 text-xs text-slate-300">
+                Sesión actual: <span className="font-semibold">{currentUser.email || 'Cuenta de Google'}</span>
+              </div>
+              <button
+                onClick={() => signOut(auth)}
+                className="w-full py-2.5 bg-[#17202c] hover:bg-[#202c3d] border border-[#2d3a4b] text-slate-100 font-bold rounded-xl text-sm transition-colors cursor-pointer"
+              >
+                Cerrar sesión y usar otra cuenta
+              </button>
+            </div>
+          ) : (
             <button
               onClick={handleGoogleLogin}
               className="w-full py-3 bg-[#17202c] hover:bg-[#202c3d] border border-[#2d3a4b] text-slate-100 font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-3 cursor-pointer shadow-md"
@@ -313,29 +367,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
               </svg>
               Iniciar sesión con Google
             </button>
-
-            <div className="flex items-center gap-3">
-              <div className="h-px bg-[#263241] flex-1" />
-              <span className="text-[11px] text-slate-500 uppercase tracking-wider">o clave de equipo</span>
-              <div className="h-px bg-[#263241] flex-1" />
-            </div>
-
-            <form onSubmit={handlePasscodeLogin} className="space-y-3">
-              <input
-                type="password"
-                placeholder="Código de acceso administrativo"
-                value={adminPasscode}
-                onChange={(e) => setAdminPasscode(e.target.value)}
-                className="w-full bg-[#0a1017] border border-[#263241] rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500 placeholder-slate-500"
-              />
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-xl text-sm transition-colors cursor-pointer"
-              >
-                Ingresar al Dashboard
-              </button>
-            </form>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -387,10 +419,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
             </button>
 
             <button
-              onClick={() => {
-                signOut(auth);
-                setPasscodeAuthenticated(false);
-              }}
+              onClick={() => signOut(auth)}
               className="p-1.5 bg-[#17202c] hover:bg-red-950/60 hover:text-red-400 border border-[#2d3a4b] text-slate-400 rounded-lg text-xs flex items-center transition-colors cursor-pointer"
               title="Cerrar sesión"
             >

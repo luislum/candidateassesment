@@ -11,8 +11,8 @@ import {
   query,
   orderBy
 } from 'firebase/firestore';
-import { signInWithPopup, signOut, User } from 'firebase/auth';
-import { db, auth, googleProvider } from '../firebase';
+import { signInAnonymously, signOut, User } from 'firebase/auth';
+import { db, auth } from '../firebase';
 import {
   TECHNICAL_QUESTIONS,
   PRACTICAL_CASE_VARIANTS,
@@ -52,6 +52,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
   const [isAuthorizedAdmin, setIsAuthorizedAdmin] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [authError, setAuthError] = useState('');
+  const [adminCode, setAdminCode] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
   // Data lists
   const [invitations, setInvitations] = useState<any[]>([]);
@@ -83,8 +85,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
   const [savingScores, setSavingScores] = useState(false);
   const [scoresSavedNotification, setScoresSavedNotification] = useState(false);
 
-  // Monitor Auth and verify that the signed-in account is actually allowed
-  // by the same Firestore policy used by the database.
+  const sha256 = async (value: string) => {
+    const bytes = new TextEncoder().encode(value);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  };
+
+  // Restore an existing code-based admin session from Firebase Auth.
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
@@ -97,22 +106,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
         return;
       }
 
-      if (user.email === 'l.lum@reset-corp.com') {
-        setIsAuthorizedAdmin(true);
-        setAuthChecking(false);
-        return;
-      }
-
       try {
-        const adminSnap = await getDoc(doc(db, 'admins', user.uid));
-        setIsAuthorizedAdmin(adminSnap.exists());
-        if (!adminSnap.exists()) {
-          setAuthError('Esta cuenta de Google no tiene permisos administrativos en RESET Candidate Assessment.');
-        }
+        const sessionSnap = await getDoc(doc(db, 'admin_sessions', user.uid));
+        setIsAuthorizedAdmin(sessionSnap.exists());
       } catch (err) {
-        console.error('Admin authorization check failed:', err);
+        console.error('Admin session check failed:', err);
         setIsAuthorizedAdmin(false);
-        setAuthError('Esta cuenta de Google no tiene permisos administrativos en RESET Candidate Assessment.');
       } finally {
         setAuthChecking(false);
       }
@@ -120,6 +119,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
 
     return () => unsub();
   }, []);
+
+  const handleCodeLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminCode.trim()) return;
+
+    setLoggingIn(true);
+    setAuthError('');
+
+    try {
+      // Always use a clean anonymous Firebase identity for the code session.
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
+
+      const credential = await signInAnonymously(auth);
+      const codeHash = await sha256(adminCode.trim());
+
+      await setDoc(doc(db, 'admin_sessions', credential.user.uid), {
+        codeHash,
+        createdAt: new Date().toISOString()
+      });
+
+      setCurrentUser(credential.user);
+      setIsAuthorizedAdmin(true);
+      setAdminCode('');
+    } catch (err: any) {
+      console.error('Admin code login failed:', err);
+
+      try {
+        if (auth.currentUser) await signOut(auth);
+      } catch {}
+
+      setCurrentUser(null);
+      setIsAuthorizedAdmin(false);
+
+      if (err?.code === 'auth/operation-not-allowed') {
+        setAuthError('Firebase Anonymous Authentication no está habilitado todavía.');
+      } else {
+        setAuthError('Código de acceso incorrecto.');
+      }
+    } finally {
+      setLoggingIn(false);
+      setAuthChecking(false);
+    }
+  };
+
+  const handleAdminLogout = async () => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          await deleteDoc(doc(db, 'admin_sessions', user.uid));
+        } catch {}
+      }
+      await signOut(auth);
+    } finally {
+      setCurrentUser(null);
+      setIsAuthorizedAdmin(false);
+      setSelectedSessionId(null);
+    }
+  };
 
   // Fetch all invitations, sessions, and work style evaluations
   const fetchData = async () => {
@@ -192,25 +252,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
       setSelectedEvents(evList);
     } catch (err) {
       console.error('Error loading session detail:', err);
-    }
-  };
-
-  // Google Login
-  const handleGoogleLogin = async () => {
-    setAuthError('');
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (err: any) {
-      console.error('Login error:', err);
-      if (err?.code === 'auth/unauthorized-domain') {
-        setAuthError(
-          'Firebase bloqueó este dominio. Agrega candidateassesment.vercel.app (y cualquier dominio personalizado) en Firebase Authentication > Settings > Authorized domains.'
-        );
-      } else if (err?.code === 'auth/popup-closed-by-user') {
-        setAuthError('El inicio de sesión fue cancelado antes de completarse.');
-      } else {
-        setAuthError('No se pudo iniciar sesión con Google. Revisa la configuración de Firebase Authentication.');
-      }
     }
   };
 
@@ -314,14 +355,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
 
   const isAccessAuthorized = currentUser !== null && isAuthorizedAdmin;
 
-  // --- LOGIN / PROTECTED SCREEN ---
+  // --- SIMPLE CODE LOGIN ---
   if (!isAccessAuthorized) {
     if (authChecking) {
       return (
         <div className="min-h-screen bg-[#090d12] text-[#edf3f8] flex items-center justify-center p-6">
           <div className="text-center">
             <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-sm text-slate-300">Verificando acceso administrativo...</p>
+            <p className="text-sm text-slate-300">Verificando acceso...</p>
           </div>
         </div>
       );
@@ -329,50 +370,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
 
     return (
       <div className="min-h-screen bg-[#090d12] text-[#edf3f8] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-[#101721] border border-[#263241] rounded-2xl p-8 shadow-2xl space-y-6">
+        <div className="max-w-sm w-full bg-[#101721] border border-[#263241] rounded-2xl p-8 shadow-2xl space-y-6">
           <div className="text-center">
             <div className="w-12 h-12 bg-blue-950/70 border border-blue-600/40 rounded-xl flex items-center justify-center mx-auto mb-4 text-blue-400">
               <Lock size={24} />
             </div>
-            <div className="text-xs uppercase tracking-widest text-blue-400 font-bold mb-1">RESET CORP</div>
-            <h1 className="text-xl font-bold text-slate-100">Portal Administrativo</h1>
+            <div className="text-xs uppercase tracking-widest text-blue-400 font-bold mb-1">RESET</div>
+            <h1 className="text-xl font-bold text-slate-100">Dashboard Administrativo</h1>
             <p className="text-xs text-slate-400 mt-1">
-              El panel usa autenticación real de Firebase; no existen claves administrativas en el navegador.
+              Ingresa el código administrativo para continuar.
             </p>
           </div>
 
           {authError && (
-            <div className="bg-red-950/30 border border-red-800/60 rounded-xl p-3 text-xs text-red-200 leading-relaxed">
+            <div className="bg-red-950/30 border border-red-800/60 rounded-xl p-3 text-xs text-red-200">
               {authError}
             </div>
           )}
 
-          {currentUser ? (
-            <div className="space-y-3">
-              <div className="bg-[#0a1017] border border-[#263241] rounded-xl p-3 text-xs text-slate-300">
-                Sesión actual: <span className="font-semibold">{currentUser.email || 'Cuenta de Google'}</span>
-              </div>
-              <button
-                onClick={() => signOut(auth)}
-                className="w-full py-2.5 bg-[#17202c] hover:bg-[#202c3d] border border-[#2d3a4b] text-slate-100 font-bold rounded-xl text-sm transition-colors cursor-pointer"
-              >
-                Cerrar sesión y usar otra cuenta
-              </button>
-            </div>
-          ) : (
+          <form onSubmit={handleCodeLogin} className="space-y-3">
+            <input
+              type="password"
+              autoFocus
+              autoComplete="current-password"
+              placeholder="Código de acceso"
+              value={adminCode}
+              onChange={(e) => setAdminCode(e.target.value)}
+              className="w-full bg-[#0a1017] border border-[#263241] rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-blue-500 placeholder-slate-500"
+            />
             <button
-              onClick={handleGoogleLogin}
-              className="w-full py-3 bg-[#17202c] hover:bg-[#202c3d] border border-[#2d3a4b] text-slate-100 font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-3 cursor-pointer shadow-md"
+              type="submit"
+              disabled={loggingIn || !adminCode.trim()}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 font-bold text-white rounded-xl text-sm transition-colors cursor-pointer"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              Iniciar sesión con Google
+              {loggingIn ? 'Ingresando...' : 'Ingresar'}
             </button>
-          )}
+          </form>
         </div>
       </div>
     );
@@ -424,7 +457,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
             </button>
 
             <button
-              onClick={() => signOut(auth)}
+              onClick={handleAdminLogout}
               className="p-1.5 bg-[#17202c] hover:bg-red-950/60 hover:text-red-400 border border-[#2d3a4b] text-slate-400 rounded-lg text-xs flex items-center transition-colors cursor-pointer"
               title="Cerrar sesión"
             >

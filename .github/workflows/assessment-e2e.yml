@@ -1,0 +1,31 @@
+name: Assessment E2E
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  firestore-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java for Firestore Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install E2E dependencies
+        run: npm install --no-save --ignore-scripts firebase @firebase/rules-unit-testing firebase-tools
+
+      - name: Run Firestore E2E
+        run: npx firebase emulators:exec --only firestore "node tests/firestore-e2e.mjs"

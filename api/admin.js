@@ -30,12 +30,35 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const [health] = await sql`SELECT current_database() AS database_name, NOW() AS checked_at`;
-      return json(res, 200, {
-        ok: true,
+      const [health] = await sql`
+        SELECT
+          current_database() AS database_name,
+          NOW() AS checked_at,
+          to_regclass('public.candidates') IS NOT NULL AS has_candidates,
+          to_regclass('public.assessment_sessions') IS NOT NULL AS has_sessions,
+          to_regclass('public.assessment_answers') IS NOT NULL AS has_answers,
+          to_regclass('public.integrity_events') IS NOT NULL AS has_events
+      `;
+
+      const schemaReady = Boolean(
+        health?.has_candidates &&
+        health?.has_sessions &&
+        health?.has_answers &&
+        health?.has_events
+      );
+
+      return json(res, schemaReady ? 200 : 503, {
+        ok: schemaReady,
         configured: true,
         storage: 'Neon PostgreSQL',
-        database: health?.database_name || null
+        database: health?.database_name || null,
+        schemaReady,
+        tables: {
+          candidates: Boolean(health?.has_candidates),
+          assessment_sessions: Boolean(health?.has_sessions),
+          assessment_answers: Boolean(health?.has_answers),
+          integrity_events: Boolean(health?.has_events)
+        }
       });
     } catch (error) {
       console.error('Neon admin health failed', error);

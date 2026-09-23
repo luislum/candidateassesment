@@ -1,103 +1,134 @@
 # RESET Candidate Assessment
 
-Assessment técnico para el proceso de selección de RESET.
+Assessment técnico y de estilo de trabajo para el proceso de selección de RESET.
 
-## Arquitectura
+## Arquitectura actual
 
 ```
-Candidato
+Administrador RESET
+   ↓ Google Sign-In (Firebase Auth)
+Vercel / React
    ↓
-Vercel (index.html + /api/submit)
-   ↓
-Neon PostgreSQL
-   ↓
-candidate_assessment_db
+Firebase Firestore
+   ├─ invitations
+   ├─ candidates
+   ├─ assessment_sessions
+   ├─ assessment_answers
+   ├─ integrity_events
+   └─ work_style_assessments
 ```
 
-El candidato no necesita cuenta de Google, Zoho ni Neon. Toda la persistencia ocurre servidor a servidor.
+> Nota: el repositorio ya no usa Neon para la persistencia de esta versión. El README anterior quedó desalineado después de la migración a Firebase.
 
-## Base de datos
+## Flujo E2E
 
-Base independiente:
+1. El administrador entra con Google al panel administrativo.
+2. Genera una invitación individual con nombre, correo, variante y fecha de expiración.
+3. Firestore crea el registro de `invitations` y el candidato.
+4. El sistema genera un link `?token=inv_...`.
+5. El candidato abre el link y la app valida:
+   - existencia;
+   - expiración;
+   - estado;
+   - reanudación local si ya había empezado.
+6. Al comenzar se crea `assessment_sessions` y la invitación pasa a `in_progress`.
+7. Durante la Parte 1:
+   - las respuestas se guardan periódicamente;
+   - se actualiza el tiempo y la telemetría;
+   - se registran eventos de integridad;
+   - el navegador conserva estado local para recuperación tras recarga.
+8. Al completar la Parte 1, la sesión y todas las respuestas se guardan en un único batch de Firestore.
+9. La Parte 2 guarda las 30 respuestas de estilo de trabajo y marca la invitación como `completed` en un único batch.
+10. El administrador revisa respuestas, eventos y resultados desde el dashboard.
 
-```
-candidate_assessment_db
-```
+## Seguridad administrativa
 
-Tablas:
+El panel **no usa claves hardcodeadas en JavaScript**.
 
-- `candidates`
-- `assessment_sessions`
-- `assessment_answers`
-- `integrity_events`
-- `ai_analysis`
+El acceso administrativo requiere Firebase Authentication con Google y debe coincidir con las reglas de Firestore:
 
-La base del Linktree de RESET permanece separada en `neondb`.
+- `l.lum@reset-corp.com`; o
+- un usuario cuyo UID exista en la colección `admins`.
 
-## Variable de entorno de Vercel
+Para que Google Sign-In funcione en producción, agrega los dominios usados por la aplicación en:
 
-En **Vercel > candidateassesment > Settings > Environment Variables** configurar:
+`Firebase Console → Authentication → Settings → Authorized domains`
 
-```
-DATABASE_URL=<connection string de candidate_assessment_db>
-```
-
-Aplicar a Production, Preview y Development y luego hacer Redeploy.
-
-No guardar `DATABASE_URL` en GitHub ni en código fuente.
-
-Las variables antiguas ya no son necesarias:
-
-- `APPS_SCRIPT_URL`
-- `ASSESSMENT_SHARED_SECRET`
-
-## Health check
-
-Después del deploy:
+Incluye como mínimo:
 
 ```
-https://TU-DOMINIO/api/submit
+candidateassesment.vercel.app
 ```
 
-Debe responder aproximadamente:
+y cualquier dominio personalizado que se conecte después.
 
-```json
-{
-  "ok": true,
-  "configured": true,
-  "service": "RESET Assessment API",
-  "storage": "Neon PostgreSQL",
-  "database": "candidate_assessment_db"
-}
+## Firestore
+
+La aplicación usa el proyecto y database ID definidos en:
+
+```
+firebase-applet-config.json
 ```
 
-## Persistencia
+Las reglas esperadas están en:
 
-`session_start`, `checkpoint` y `submit` actualizan la sesión.
+```
+firestore.rules
+```
 
-Las respuestas se guardan de forma incremental mediante upsert y los eventos de integridad usan `event_id` para evitar duplicados.
+Estas reglas deben estar desplegadas en el mismo Firestore database que usa la aplicación.
 
-## Datos registrados
+## Persistencia y recuperación
 
-- q1–q14
-- hora de inicio y entrega
-- tiempo transcurrido
-- copy / cut / paste como eventos
-- pérdida de foco
-- cambio de pestaña / página oculta
-- salida de pantalla completa
-- navegador, idioma, zona horaria y resolución
+La Parte 1 hace autosave aproximadamente cada 25 segundos. Además, el navegador conserva localmente:
 
-Los eventos de foco son señales contextuales; no constituyen por sí solos prueba de uso de asistencia externa.
+- `sessionId`;
+- fase actual;
+- respuestas técnicas;
+- respuestas de estilo de trabajo;
+- contadores de integridad;
+- timestamp de inicio de Parte 1;
+- timestamp de inicio de Parte 2.
 
-No se graba audio ni video y no se capturan imágenes.
+Al recargar el navegador se conserva el tiempo real transcurrido; el temporizador no vuelve a cero.
 
-## Zoho Recruit / Gemini
+Una invitación que ya está `in_progress` no puede iniciarse desde otro navegador sin el estado local correspondiente. Esto evita sesiones duplicadas para un mismo link.
 
-El esquema ya contempla:
+## Scoring
 
-- `zoho_candidate_id`
-- `zoho_job_id`
-- tabla `ai_analysis` en JSONB
+El candidato guarda respuestas crudas, no puntajes técnicos.
 
-Esto permitirá posteriormente relacionar el assessment con el perfil, CV y Job Opening de Zoho Recruit y guardar análisis técnico estructurado generado por Gemini.
+El puntaje objetivo de Q1 y los puntajes manuales se calculan/guardan desde el panel administrativo autenticado. Esto evita que el navegador del candidato pueda autoasignarse un score y mantiene compatibilidad con las reglas de Firestore.
+
+## Colecciones
+
+- `invitations`: link individual, candidato, variante, expiración y estado.
+- `candidates`: datos básicos del candidato.
+- `assessment_sessions`: sesión técnica, tiempo y contadores.
+- `assessment_answers`: respuestas Q1–Q14.
+- `integrity_events`: copy, cut, paste, pérdida de foco, pestaña oculta, fullscreen, etc.
+- `work_style_assessments`: respuestas y resultados del perfil de estilo de trabajo.
+
+## Deploy
+
+El repositorio está conectado al proyecto Vercel `digital-reset/candidateassesment`.
+
+Cada push a `main` dispara un deployment. El estado del deployment puede verificarse desde GitHub en el check `Vercel`.
+
+## Validación mínima después de cada cambio
+
+1. Abrir `/?admin=true`.
+2. Autenticarse con una cuenta administradora.
+3. Crear una invitación de prueba.
+4. Copiar y abrir el link en una ventana privada.
+5. Iniciar el assessment.
+6. Responder al menos una pregunta y recargar para verificar recuperación y timer.
+7. Completar Q1–Q14.
+8. Completar las 30 afirmaciones de estilo de trabajo.
+9. Confirmar pantalla final.
+10. Volver al dashboard y verificar:
+    - invitación = `completed`;
+    - sesión = `submitted`;
+    - 14 documentos de respuestas;
+    - un documento de estilo de trabajo;
+    - eventos de integridad.

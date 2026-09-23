@@ -6,6 +6,7 @@ import {
   doc,
   setDoc,
   updateDoc,
+  writeBatch,
   deleteDoc,
   query,
   orderBy
@@ -226,8 +227,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
       const expiresAt = new Date(Date.now() + newExpiryDays * 24 * 60 * 60 * 1000).toISOString();
       const candId = `cand_${newCandidateEmail.trim().toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
 
-      // Save invitation in Firestore
-      await setDoc(doc(db, 'invitations', tokenId), {
+      const inviteBatch = writeBatch(db);
+
+      // Candidate and invitation are created together. The UI only exposes the
+      // generated link after Firestore confirms both records were committed.
+      inviteBatch.set(doc(db, 'invitations', tokenId), {
         id: tokenId,
         candidateId: candId,
         candidateName: newCandidateName.trim(),
@@ -238,14 +242,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenCandidateL
         createdAt: new Date().toISOString()
       });
 
-      // Also ensure candidate record exists
-      await setDoc(doc(db, 'candidates', candId), {
+      inviteBatch.set(doc(db, 'candidates', candId), {
         id: candId,
         name: newCandidateName.trim(),
         email: newCandidateEmail.trim().toLowerCase(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }, { merge: true });
+
+      await inviteBatch.commit();
 
       const link = `${window.location.origin}${window.location.pathname}?token=${tokenId}`;
       setGeneratedInviteLink(link);

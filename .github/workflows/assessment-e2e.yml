@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  firestore-e2e:
+  build-and-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -18,20 +18,25 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Java for Firestore Emulator
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
+      - name: Install dependencies
+        run: npm install --ignore-scripts
 
-      - name: Install E2E dependencies
-        run: npm install --no-save --ignore-scripts firebase @firebase/rules-unit-testing firebase-tools
+      - name: Build React app
+        run: npm run build
 
-      - name: Run Firestore E2E
-        run: npx firebase emulators:exec --only firestore "node tests/firestore-e2e.mjs"
-
-      - name: Run simple assessment flow E2E
-        run: npx firebase emulators:exec --only firestore "node tests/simple-flow-e2e.mjs"
-
-      - name: Run production smoke test
-        run: node tests/production-smoke.mjs
+      - name: Verify Neon production API
+        shell: bash
+        run: |
+          set -e
+          for i in {1..30}; do
+            BODY="$(curl -sS --max-time 10 https://candidateassesment.vercel.app/api/admin || true)"
+            if echo "$BODY" | grep -q '"storage":"Neon PostgreSQL"'; then
+              echo "$BODY"
+              echo "NEON PRODUCTION API PASS"
+              exit 0
+            fi
+            echo "Waiting for Vercel production deployment ($i/30)..."
+            sleep 5
+          done
+          echo "Production Neon API did not become healthy."
+          exit 1

@@ -9,7 +9,6 @@ interface AssessmentRow {
   session_id: string;
   status: string;
   version: string;
-  variant: 'A' | 'B' | 'C';
   candidate_id: string | number;
   candidate_name: string;
   candidate_email: string;
@@ -49,7 +48,6 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
   const [showNew, setShowNew] = useState(false);
   const [candidateName, setCandidateName] = useState('');
   const [candidateEmail, setCandidateEmail] = useState('');
-  const [variant, setVariant] = useState<'A' | 'B' | 'C'>('A');
   const [generatedLink, setGeneratedLink] = useState('');
   const [selected, setSelected] = useState<AssessmentRow | null>(null);
   const [detail, setDetail] = useState<any>(null);
@@ -119,8 +117,7 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
       const data = await adminRequest(adminCode, {
         action: 'create_invite',
         candidateName: candidateName.trim(),
-        candidateEmail: candidateEmail.trim(),
-        variant
+        candidateEmail: candidateEmail.trim()
       });
 
       const link = window.location.origin + window.location.pathname + '?token=' + encodeURIComponent(data.token);
@@ -137,7 +134,6 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
     setShowNew(false);
     setCandidateName('');
     setCandidateEmail('');
-    setVariant('A');
     setGeneratedLink('');
   };
 
@@ -216,7 +212,7 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
 
           <div className="bg-[#101721] border border-[#263241] rounded-2xl p-6">
             <h1 className="text-2xl font-bold">{selected.candidate_name}</h1>
-            <p className="text-sm text-slate-400">{selected.candidate_email} · Variante {selected.variant}</p>
+            <p className="text-sm text-slate-400">{selected.candidate_email}</p>
             <div className="mt-3 text-xs text-slate-500 font-mono">{selected.session_id}</div>
             <div className="mt-2 text-sm text-blue-400 font-semibold">Estado: {selected.status}</div>
           </div>
@@ -241,7 +237,7 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
               </div>
 
               <div className="bg-[#101721] border border-[#263241] rounded-2xl p-5">
-                <div className="font-bold mb-3">Perfil de estilo de trabajo</div>
+                <div className="font-bold mb-3">Perfil de personalidad laboral</div>
                 {selected.work_style_answer_count === 30 ? (
                   <div className="space-y-3">
                     <div className="text-sm text-emerald-400 font-semibold">Completado</div>
@@ -309,9 +305,9 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
                   <div key={row.session_id} className="p-5 flex flex-col md:flex-row md:items-center gap-4">
                     <div className="flex-1">
                       <div className="font-bold">{row.candidate_name}</div>
-                      <div className="text-xs text-slate-400">{row.candidate_email} · Variante {row.variant}</div>
+                      <div className="text-xs text-slate-400">{row.candidate_email}</div>
                       <div className="text-xs text-blue-400 mt-1 font-semibold">
-                        {row.status} · {row.technical_answer_count || 0}/14 técnicas · {row.work_style_answer_count || 0}/30 estilo
+                        {row.status} · {row.technical_answer_count || 0}/14 técnicas · {row.work_style_answer_count || 0}/30 personalidad
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -352,15 +348,10 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
               <form onSubmit={createInvite} className="space-y-4">
                 <div>
                   <h2 className="text-lg font-bold">Nueva evaluación</h2>
-                  <p className="text-xs text-slate-400">Nombre, correo y variante. Nada más.</p>
+                  <p className="text-xs text-slate-400">Nombre y correo. La evaluación es única para Ingeniero en Desarrollo de Software / Sistemas.</p>
                 </div>
                 <input required value={candidateName} onChange={(e) => setCandidateName(e.target.value)} placeholder="Nombre del candidato" className="w-full bg-[#0a1017] border border-[#263241] rounded-xl px-4 py-3 text-sm" />
                 <input required type="email" value={candidateEmail} onChange={(e) => setCandidateEmail(e.target.value)} placeholder="Correo del candidato" className="w-full bg-[#0a1017] border border-[#263241] rounded-xl px-4 py-3 text-sm" />
-                <select value={variant} onChange={(e) => setVariant(e.target.value as 'A' | 'B' | 'C')} className="w-full bg-[#0a1017] border border-[#263241] rounded-xl px-3 py-3 text-sm">
-                  <option value="A">Variante A</option>
-                  <option value="B">Variante B</option>
-                  <option value="C">Variante C</option>
-                </select>
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={closeNew} className="flex-1 py-3 border border-[#263241] rounded-xl text-sm">Cancelar</button>
                   <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 disabled:opacity-50 rounded-xl text-sm font-bold">

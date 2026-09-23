@@ -4,10 +4,9 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  collection,
-  serverTimestamp
+  writeBatch
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db } from '../firebase';
 import {
   TECHNICAL_QUESTIONS,
   PRACTICAL_CASE_VARIANTS,
@@ -139,23 +138,44 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         setCandidateId(data.candidateId || data.candidateEmail);
         setVariant(data.variant || 'A');
 
-        // Check if there was an in-progress session in localStorage
+        // Restore the candidate's in-progress state from this browser.
+        // This keeps timers and answers consistent after reloads and prevents a
+        // single-use invitation from being started in a second browser/device.
         const storedKey = `reset_assessment_${invitationToken}`;
         const local = localStorage.getItem(storedKey);
+        let restoredSession = false;
+
         if (local) {
           try {
             const parsed = JSON.parse(local);
-            if (parsed.sessionId) setSessionId(parsed.sessionId);
+            if (parsed.sessionId) {
+              setSessionId(parsed.sessionId);
+              restoredSession = true;
+            }
             if (parsed.technicalAnswers) setTechnicalAnswers(parsed.technicalAnswers);
             if (parsed.workStyleResponses) setWorkStyleResponses(parsed.workStyleResponses);
-            if (parsed.phase && parsed.phase !== 'error') setPhase(parsed.phase);
+            if (parsed.technicalStartTime) setTechnicalStartTime(parsed.technicalStartTime);
+            if (parsed.workStyleStartTime) setWorkStyleStartTime(parsed.workStyleStartTime);
             if (parsed.counters) setCounters(parsed.counters);
+            if (parsed.phase && parsed.phase !== 'error' && parsed.phase !== 'all_completed') {
+              setPhase(parsed.phase);
+            }
           } catch (e) {
-            // Ignore parse errors
+            localStorage.removeItem(storedKey);
           }
         }
 
-        setPhase(prev => (prev === 'validating' ? 'intro' : prev));
+        if (data.status === 'in_progress' && !restoredSession) {
+          setErrorMessage(
+            'Este enlace ya fue iniciado en otro navegador o dispositivo. Para proteger la integridad del proceso, continúa desde el navegador donde comenzaste o contacta al equipo de RESET.'
+          );
+          setPhase('error');
+          return;
+        }
+
+        if (!restoredSession) {
+          setPhase('intro');
+        }
       } catch (err) {
         console.error('Error validating invitation:', err);
         setErrorMessage('No se pudo verificar la invitación. Intenta recargar la página.');
@@ -165,6 +185,35 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
     checkInvitation();
   }, [invitationToken]);
+
+  // Persist all resumable state locally. Firestore remains the source of truth
+  // for submitted data, while local storage protects the candidate from reloads.
+  useEffect(() => {
+    if (!sessionId || phase === 'validating' || phase === 'error' || phase === 'all_completed') return;
+
+    localStorage.setItem(`reset_assessment_${invitationToken}`, JSON.stringify({
+      sessionId,
+      phase,
+      candidateName,
+      candidateEmail,
+      technicalAnswers,
+      workStyleResponses,
+      counters,
+      technicalStartTime,
+      workStyleStartTime
+    }));
+  }, [
+    sessionId,
+    phase,
+    invitationToken,
+    candidateName,
+    candidateEmail,
+    technicalAnswers,
+    workStyleResponses,
+    counters,
+    technicalStartTime,
+    workStyleStartTime
+  ]);
 
   // Fullscreen helper
   const requestFullscreenSafe = async () => {
@@ -288,10 +337,6 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       const elapsed = technicalStartTime ? Math.floor((Date.now() - technicalStartTime) / 1000) : 0;
       const sessionRef = doc(db, 'assessment_sessions', sessionId);
 
-      // Objective Q1 score check
-      const q1Answer = technicalAnswers['q1'] || '';
-      const objectiveScore = q1Answer === 'B' ? 4 : 0;
-
       await setDoc(sessionRef, {
         elapsedSeconds: elapsed,
         status: 'in_progress',
@@ -308,29 +353,15 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       for (const [qid, ans] of Object.entries(technicalAnswers)) {
         if (!ans) continue;
         const answerId = `${sessionId}_${qid}`;
-        const autoScore = qid === 'q1' ? (ans === 'B' ? 4 : 0) : undefined;
 
         await setDoc(doc(db, 'assessment_answers', answerId), {
           id: answerId,
           sessionId,
           questionId: qid,
           answer: String(ans).slice(0, 50000),
-          ...(autoScore !== undefined ? { autoScore } : {}),
           recordedAt: new Date().toISOString()
         }, { merge: true });
       }
-
-      // Persist locally
-      const storedKey = `reset_assessment_${invitationToken}`;
-      localStorage.setItem(storedKey, JSON.stringify({
-        sessionId,
-        phase,
-        candidateName,
-        candidateEmail,
-        technicalAnswers,
-        workStyleResponses,
-        counters
-      }));
 
       setSaveStatus('Guardado');
     } catch (e) {
@@ -408,15 +439,15 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
     try {
       const elapsed = technicalStartTime ? Math.floor((Date.now() - technicalStartTime) / 1000) : 0;
-      const q1Ans = technicalAnswers['q1'] || '';
-      const objectiveScore = q1Ans === 'B' ? 4 : 0;
+      const batch = writeBatch(db);
 
-      // Update session in Firestore
-      await setDoc(doc(db, 'assessment_sessions', sessionId), {
+      // Candidate writes raw answers and telemetry only. Scoring is calculated
+      // by the authorized reviewer, so candidate-side writes comply with the
+      // Firestore security rules and cannot self-assign a score.
+      batch.set(doc(db, 'assessment_sessions', sessionId), {
         status: 'submitted',
         submittedAt: new Date().toISOString(),
         elapsedSeconds: elapsed,
-        objectiveScore,
         evaluationStatus: 'pending_review',
         copyCount: counters.copy,
         pasteCount: counters.paste,
@@ -427,10 +458,9 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      // Save all answers
       for (const [qid, ans] of Object.entries(technicalAnswers)) {
         const answerId = `${sessionId}_${qid}`;
-        await setDoc(doc(db, 'assessment_answers', answerId), {
+        batch.set(doc(db, 'assessment_answers', answerId), {
           id: answerId,
           sessionId,
           questionId: qid,
@@ -439,11 +469,16 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         }, { merge: true });
       }
 
+      // One atomic commit prevents a "submitted" session with missing answers,
+      // or saved answers with an unsubmitted session.
+      await batch.commit();
+
+      setSaveStatus('Entregado');
       setPhase('part1_done');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('Error submitting technical quiz:', err);
-      alert('Ocurrió un problema al guardar la entrega. Por favor intenta de nuevo.');
+      alert('Ocurrió un problema al guardar la entrega. Tus respuestas siguen guardadas localmente; intenta nuevamente.');
     }
   };
 
@@ -473,9 +508,9 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       const calculation = calculateWorkStyleScores(workStyleResponses);
       const elapsed = workStyleStartTime ? Math.floor((Date.now() - workStyleStartTime) / 1000) : workStyleSecondsElapsed;
       const assessmentId = `ws_${sessionId}`;
+      const batch = writeBatch(db);
 
-      // Save to dedicated work_style_assessments collection as required
-      await setDoc(doc(db, 'work_style_assessments', assessmentId), {
+      batch.set(doc(db, 'work_style_assessments', assessmentId), {
         id: assessmentId,
         candidateId,
         sessionId,
@@ -490,13 +525,15 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
         completed: true
       });
 
-      // Mark invitation as completed
-      await updateDoc(doc(db, 'invitations', invitationToken), {
+      batch.update(doc(db, 'invitations', invitationToken), {
         status: 'completed',
         usedAt: new Date().toISOString()
       });
 
-      // Clear local storage state
+      // The work-style result and the invitation completion marker commit
+      // together so the admin panel never sees a partially completed result.
+      await batch.commit();
+
       localStorage.removeItem(`reset_assessment_${invitationToken}`);
 
       if (document.fullscreenElement && document.exitFullscreen) {
@@ -507,7 +544,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       console.error('Error submitting work style:', err);
-      alert('Ocurrió un error al procesar la entrega final. Por favor intenta de nuevo.');
+      alert('Ocurrió un error al procesar la entrega final. Tus respuestas siguen guardadas localmente; intenta nuevamente.');
     }
   };
 

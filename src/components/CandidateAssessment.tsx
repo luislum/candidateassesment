@@ -661,7 +661,7 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
 
                 <div className="space-y-8">
                   {sectionQuestions.map((q) => {
-                    // Special rendering for Q12: Practical Case with Variant
+                    // Special rendering for Q12: fixed practical case
                     if (q.id === 'q12') {
                       return (
                         <div

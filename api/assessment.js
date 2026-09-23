@@ -3,8 +3,7 @@ import {
   getSql,
   insertEvents,
   safeInteger,
-  upsertAnswers,
-  variantFromVersion
+  upsertAnswers
 } from './_db.js';
 
 function json(res, status, payload) {
@@ -26,7 +25,7 @@ async function loadAssessment(sql, token) {
     FROM assessment_sessions s
     JOIN candidates c ON c.id = s.candidate_id
     WHERE s.session_id = ${token}
-      AND s.version LIKE 'RESET-V3-%'
+      AND s.version = 'RESET-SWE-V1'
     LIMIT 1
   `;
   return rows[0] || null;
@@ -58,7 +57,6 @@ export default async function handler(req, res) {
           candidateId: assessment.candidate_id,
           candidateName: assessment.candidate_name,
           candidateEmail: assessment.candidate_email,
-          variant: variantFromVersion(assessment.version),
           status: assessment.status,
           startedAt: assessment.started_at,
           submittedAt: assessment.submitted_at,

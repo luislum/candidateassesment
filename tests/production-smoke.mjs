@@ -26,11 +26,31 @@ assert(
   'Generated-token URL does not load the assessment SPA'
 );
 
-// 3. Verify the REAL Firestore database permits individual invitation lookups.
+const key = encodeURIComponent(config.apiKey);
+
+// 3. Firebase Auth must accept the production Vercel origin as a continue URI.
+// createAuthUri is the same public Auth backend family used by Firebase Web Auth;
+// a misconfigured authorized domain causes this request to be rejected.
+const authUri = await fetch(
+  `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${key}`,
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier: 'reset.assessment.smoke@example.com',
+      continueUri: `${appUrl}/?admin=true`
+    })
+  }
+);
+assert(
+  authUri.ok,
+  `Firebase Auth rejected the production domain with HTTP ${authUri.status}: ${(await authUri.text()).slice(0, 300)}`
+);
+
+// 4. Verify the REAL Firestore database permits individual invitation lookups.
 // A correctly secured nonexistent document returns 404. A 403 means production
 // rules do not match the candidate link flow.
 const base = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/${config.firestoreDatabaseId}/documents`;
-const key = encodeURIComponent(config.apiKey);
 
 const getInvite = await fetch(
   `${base}/invitations/${encodeURIComponent(probeToken)}?key=${key}`
@@ -40,7 +60,7 @@ assert(
   `Production Firestore invitation GET expected 404 for a missing token, got HTTP ${getInvite.status}: ${(await getInvite.text()).slice(0, 300)}`
 );
 
-// 4. Anonymous candidates must NOT be able to enumerate invitations.
+// 5. Anonymous candidates must NOT be able to enumerate invitations.
 const listInvites = await fetch(
   `${base}/invitations?pageSize=1&key=${key}`
 );
@@ -49,4 +69,4 @@ assert(
   `Production Firestore invitation LIST expected 403, got HTTP ${listInvites.status}: ${(await listInvites.text()).slice(0, 300)}`
 );
 
-console.log('PRODUCTION SMOKE PASS: Vercel app + token route + Firestore get/list security');
+console.log('PRODUCTION SMOKE PASS: Vercel app + token route + Firebase Auth domain + Firestore get/list security');

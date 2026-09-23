@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CandidateAssessment } from './components/CandidateAssessment';
 import { AdminDashboard } from './components/AdminDashboard';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
 import { Shield, UserCheck, Play, ArrowRight, Lock } from 'lucide-react';
 
 export function App() {
@@ -23,33 +21,12 @@ export function App() {
     }
   }, []);
 
-  const handleCreateDemoInvitation = async (variant: 'A' | 'B' | 'C' = 'A') => {
-    const demoToken = `demo_${Date.now().toString(36)}`;
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    try {
-      await setDoc(doc(db, 'invitations', demoToken), {
-        id: demoToken,
-        candidateId: 'demo_candidate',
-        candidateName: 'Candidato de Prueba',
-        candidateEmail: 'candidato.prueba@reset-corp.com',
-        variant,
-        status: 'pending',
-        expiresAt,
-        createdAt: new Date().toISOString()
-      });
-
-      // Update URL and open
-      const url = new URL(window.location.href);
-      url.searchParams.set('token', demoToken);
-      url.searchParams.delete('admin');
-      window.history.pushState({}, '', url);
-      setToken(demoToken);
-      setShowAdmin(false);
-    } catch (e) {
-      console.error('Error creating demo invitation:', e);
-      alert('Error al iniciar demo.');
-    }
+  const handleOpenAdmin = () => {
+    setShowAdmin(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('token');
+    url.searchParams.set('admin', 'true');
+    window.history.pushState({}, '', url);
   };
 
   const handleOpenCandidateLink = (tokenToOpen: string) => {
@@ -88,12 +65,7 @@ export function App() {
       <header className="max-w-5xl w-full mx-auto flex items-center justify-between border-b border-[#263241] pb-4">
         <div className="text-xl font-black tracking-widest text-blue-500">RESET</div>
         <button
-          onClick={() => {
-            setShowAdmin(true);
-            const url = new URL(window.location.href);
-            url.searchParams.set('admin', 'true');
-            window.history.pushState({}, '', url);
-          }}
+          onClick={handleOpenAdmin}
           className="px-3.5 py-1.5 bg-[#101721] hover:bg-[#17202c] border border-[#263241] rounded-xl text-xs font-bold text-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer"
         >
           <Lock size={13} className="text-blue-400" />
@@ -152,41 +124,28 @@ export function App() {
             </div>
           </div>
 
-          {/* Card 2: Quick Demo Simulation */}
+          {/* Card 2: Invitation Management */}
           <div className="bg-[#101721] border border-[#263241] rounded-2xl p-6 shadow-xl space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-950/80 border border-emerald-800 flex items-center justify-center text-emerald-400">
                 <Play size={20} />
               </div>
-              <h2 className="text-lg font-bold text-slate-100">Iniciar Prueba / Demo</h2>
+              <h2 className="text-lg font-bold text-slate-100">Generar Invitación</h2>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Genera una sesión de prueba instantánea para evaluar la experiencia completa del candidato con las 3 variantes del caso práctico.
+                Las invitaciones y pruebas internas se generan desde el panel administrativo autenticado para asegurar que cada enlace exista realmente en Firestore.
               </p>
             </div>
 
             <div className="space-y-2 pt-2">
-              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-                <button
-                  onClick={() => handleCreateDemoInvitation('A')}
-                  className="py-2 px-2 bg-[#0a1017] hover:bg-[#17202c] border border-[#263241] text-slate-300 font-bold rounded-lg transition-colors cursor-pointer text-center"
-                >
-                  Variante A
-                </button>
-                <button
-                  onClick={() => handleCreateDemoInvitation('B')}
-                  className="py-2 px-2 bg-[#0a1017] hover:bg-[#17202c] border border-[#263241] text-slate-300 font-bold rounded-lg transition-colors cursor-pointer text-center"
-                >
-                  Variante B
-                </button>
-                <button
-                  onClick={() => handleCreateDemoInvitation('C')}
-                  className="py-2 px-2 bg-[#0a1017] hover:bg-[#17202c] border border-[#263241] text-slate-300 font-bold rounded-lg transition-colors cursor-pointer text-center"
-                >
-                  Variante C
-                </button>
-              </div>
+              <button
+                onClick={handleOpenAdmin}
+                className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-600 font-bold text-white rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                Abrir Panel Administrativo
+                <ArrowRight size={14} />
+              </button>
               <span className="block text-[10px] text-slate-500 text-center">
-                Crea una invitación temporal de un solo uso
+                Desde allí puedes crear enlaces para Variante A, B o C.
               </span>
             </div>
           </div>

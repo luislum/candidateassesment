@@ -42,10 +42,31 @@ const authUri = await fetch(
     })
   }
 );
+const authBody = await authUri.json().catch(() => ({}));
 assert(
   authUri.ok,
-  `Firebase Auth rejected the production domain with HTTP ${authUri.status}: ${(await authUri.text()).slice(0, 300)}`
+  `Firebase Auth rejected the production domain with HTTP ${authUri.status}: ${JSON.stringify(authBody).slice(0, 300)}`
 );
+console.log('Firebase Auth providers:', JSON.stringify({
+  signinMethods: authBody.signinMethods || [],
+  allProviders: authBody.allProviders || [],
+  registered: authBody.registered || false
+}));
+
+const anonymousProbe = await fetch(
+  `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${key}`,
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ returnSecureToken: true })
+  }
+);
+const anonymousBody = await anonymousProbe.json().catch(() => ({}));
+console.log('Firebase Anonymous Auth probe:', JSON.stringify({
+  status: anonymousProbe.status,
+  enabled: anonymousProbe.ok,
+  error: anonymousBody?.error?.message || null
+}));
 
 // 4. Verify the REAL Firestore database permits individual invitation lookups.
 // A correctly secured nonexistent document returns 404. A 403 means production

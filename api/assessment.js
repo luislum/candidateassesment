@@ -15,6 +15,8 @@ async function loadAssessment(sql, token) {
     SELECT
       s.session_id,
       CASE
+        WHEN s.status = 'submitted' THEN 'completed'
+        WHEN COALESCE(s.browser->>'technical_submitted', 'false') = 'true' THEN 'technical_submitted'
         WHEN COALESCE(s.browser->>'prestart', 'false') = 'true' THEN 'invited'
         ELSE s.status
       END AS status,
@@ -110,11 +112,15 @@ export default async function handler(req, res) {
       await upsertAnswers(sql, token, body.answers || {});
       await insertEvents(sql, token, body.events || []);
 
-      const nextStatus = action === 'technical_submit' ? 'technical_submitted' : 'in_progress';
+      const markTechnicalSubmitted = action === 'technical_submit';
       await sql`
         UPDATE assessment_sessions
         SET
-          status = CASE WHEN status = 'completed' THEN status ELSE ${nextStatus} END,
+          status = CASE WHEN status = 'submitted' THEN status ELSE 'in_progress' END,
+          browser = CASE
+            WHEN ${markTechnicalSubmitted} THEN jsonb_set(COALESCE(browser, '{}'::jsonb), '{technical_submitted}', 'true'::jsonb, true)
+            ELSE browser
+          END,
           elapsed_seconds = GREATEST(COALESCE(elapsed_seconds, 0), ${elapsed}),
           copy_count = ${safeInteger(counters.copy)},
           paste_count = ${safeInteger(counters.paste)},
@@ -136,7 +142,7 @@ export default async function handler(req, res) {
       await sql`
         UPDATE assessment_sessions
         SET
-          status = 'completed',
+          status = 'submitted',
           submitted_at = NOW(),
           elapsed_seconds = GREATEST(COALESCE(elapsed_seconds, 0), ${elapsed}),
           copy_count = ${safeInteger(counters.copy)},

@@ -20,6 +20,7 @@ interface AssessmentRow {
 }
 
 const CODE_KEY = 'reset_admin_code';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function adminRequest(code: string, body: any) {
   const response = await fetch('/api/admin', {
@@ -111,13 +112,18 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
   const createInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!candidateName.trim() || !candidateEmail.trim()) return;
+    const normalizedEmail = candidateEmail.trim().toLowerCase();
+    if (!EMAIL_RE.test(normalizedEmail)) {
+      alert('Ingresa un correo electrónico válido.');
+      return;
+    }
 
     setLoading(true);
     try {
       const data = await adminRequest(adminCode, {
         action: 'create_invite',
         candidateName: candidateName.trim(),
-        candidateEmail: candidateEmail.trim()
+        candidateEmail: normalizedEmail
       });
 
       const link = window.location.origin + window.location.pathname + '?token=' + encodeURIComponent(data.token);
@@ -351,7 +357,7 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
                   <p className="text-xs text-slate-400">Nombre y correo. La evaluación es única para Ingeniero en Desarrollo de Software / Sistemas.</p>
                 </div>
                 <input required value={candidateName} onChange={(e) => setCandidateName(e.target.value)} placeholder="Nombre del candidato" className="w-full bg-[#0a1017] border border-[#263241] rounded-xl px-4 py-3 text-sm" />
-                <input required type="email" value={candidateEmail} onChange={(e) => setCandidateEmail(e.target.value)} placeholder="Correo del candidato" className="w-full bg-[#0a1017] border border-[#263241] rounded-xl px-4 py-3 text-sm" />
+                <input required type="text" inputMode="email" autoComplete="email" value={candidateEmail} onChange={(e) => setCandidateEmail(e.target.value)} placeholder="Correo del candidato" className="w-full bg-[#0a1017] border border-[#263241] rounded-xl px-4 py-3 text-sm" />
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={closeNew} className="flex-1 py-3 border border-[#263241] rounded-xl text-sm">Cancelar</button>
                   <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 disabled:opacity-50 rounded-xl text-sm font-bold">

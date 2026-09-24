@@ -84,6 +84,8 @@ export default async function handler(req, res) {
         SELECT
           s.session_id,
           CASE
+            WHEN s.status = 'submitted' THEN 'completed'
+            WHEN COALESCE(s.browser->>'technical_submitted', 'false') = 'true' THEN 'technical_submitted'
             WHEN COALESCE(s.browser->>'prestart', 'false') = 'true' THEN 'invited'
             ELSE s.status
           END AS status,
@@ -171,6 +173,8 @@ export default async function handler(req, res) {
         SELECT
           s.*,
           CASE
+            WHEN s.status = 'submitted' THEN 'completed'
+            WHEN COALESCE(s.browser->>'technical_submitted', 'false') = 'true' THEN 'technical_submitted'
             WHEN COALESCE(s.browser->>'prestart', 'false') = 'true' THEN 'invited'
             ELSE s.status
           END AS status,

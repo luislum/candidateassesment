@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const ADMIN_CODE_HASH = '756972610c98f6c4dc5c867d5f8c1bc429a5b48d284eeb763a8343702d50675e';
-export const EMAIL_RE = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function getSql() {
   const databaseUrl = process.env.DATABASE_URL;

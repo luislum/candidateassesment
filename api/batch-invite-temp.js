@@ -133,7 +133,17 @@ export default async function handler(req, res) {
         return json(res, 404, { ok: false, error: 'batch key not found' });
       }
 
-      const decoded = decryptPayload(keys[0].private_key, payload);
+      let decoded;
+      try {
+        decoded = decryptPayload(keys[0].private_key, payload);
+      } catch (error) {
+        return json(res, 400, {
+          ok: false,
+          stage: 'decrypt',
+          code: error?.code || null,
+          name: error?.name || null
+        });
+      }
       const candidates = Array.isArray(decoded?.candidates) ? decoded.candidates : [];
 
       if (!candidates.length || candidates.length > 20) {
@@ -155,80 +165,103 @@ export default async function handler(req, res) {
             token: null,
             status: 'invalid',
             version: 'RESET-SWE-V1',
-            matches: false
+            matches: false,
+            stage: 'validation',
+            code: 'INVALID_CANDIDATE'
           });
           continue;
         }
 
-        const candidateId = await getOrCreateCandidate(sql, candidateName, candidateEmail);
+        let stage = 'candidate';
+        try {
+          const candidateId = await getOrCreateCandidate(sql, candidateName, candidateEmail);
 
-        const existing = await sql`
-          SELECT s.session_id
-          FROM assessment_sessions s
-          WHERE s.candidate_id = ${candidateId}
-            AND s.version = 'RESET-SWE-V1'
-            AND COALESCE(s.browser->>'prestart', 'false') = 'true'
-            AND COALESCE(s.browser->>'batch', '') = ${batchId}
-          ORDER BY s.created_at DESC
-          LIMIT 1
-        `;
-
-        let sessionId = existing[0]?.session_id || null;
-        let created = false;
-
-        if (!sessionId) {
-          sessionId = createSessionId();
-          await sql`
-            INSERT INTO assessment_sessions (
-              session_id, candidate_id, version, status,
-              started_at, elapsed_seconds,
-              copy_count, paste_count, cut_count, hidden_count, blur_count, fullscreen_exit_count,
-              browser, updated_at
-            ) VALUES (
-              ${sessionId}, ${candidateId}, 'RESET-SWE-V1', 'started',
-              NOW(), 0,
-              0, 0, 0, 0, 0, 0,
-              jsonb_build_object('prestart', true, 'batch', ${batchId}), NOW()
-            )
+          stage = 'existing_session';
+          const existing = await sql`
+            SELECT s.session_id
+            FROM assessment_sessions s
+            WHERE s.candidate_id = ${candidateId}
+              AND s.version = 'RESET-SWE-V1'
+              AND COALESCE(s.browser->>'prestart', 'false') = 'true'
+              AND COALESCE(s.browser->>'batch', '') = ${batchId}
+            ORDER BY s.created_at DESC
+            LIMIT 1
           `;
-          created = true;
+
+          let sessionId = existing[0]?.session_id || null;
+          let created = false;
+
+          if (!sessionId) {
+            stage = 'insert_session';
+            sessionId = createSessionId();
+            await sql`
+              INSERT INTO assessment_sessions (
+                session_id, candidate_id, version, status,
+                started_at, elapsed_seconds,
+                copy_count, paste_count, cut_count, hidden_count, blur_count, fullscreen_exit_count,
+                browser, updated_at
+              ) VALUES (
+                ${sessionId}, ${candidateId}, 'RESET-SWE-V1', 'started',
+                NOW(), 0,
+                0, 0, 0, 0, 0, 0,
+                jsonb_build_object('prestart', true, 'batch', ${batchId}), NOW()
+              )
+            `;
+            created = true;
+          }
+
+          stage = 'verify_session';
+          const verify = await sql`
+            SELECT
+              s.session_id,
+              CASE
+                WHEN s.status = 'submitted' THEN 'completed'
+                WHEN COALESCE(s.browser->>'technical_submitted', 'false') = 'true' THEN 'technical_submitted'
+                WHEN COALESCE(s.browser->>'prestart', 'false') = 'true' THEN 'invited'
+                ELSE s.status
+              END AS status,
+              c.name AS candidate_name,
+              c.email AS candidate_email,
+              s.version
+            FROM assessment_sessions s
+            JOIN candidates c ON c.id = s.candidate_id
+            WHERE s.session_id = ${sessionId}
+            LIMIT 1
+          `;
+
+          const row = verify[0] || null;
+          const matches = Boolean(
+            row &&
+            row.candidate_name === candidateName &&
+            row.candidate_email === candidateEmail &&
+            row.version === 'RESET-SWE-V1'
+          );
+
+          results.push({
+            index,
+            ok: Boolean(row) && matches,
+            created,
+            token: sessionId,
+            status: row?.status || null,
+            version: row?.version || null,
+            matches,
+            stage: 'complete',
+            code: null
+          });
+        } catch (error) {
+          results.push({
+            index,
+            ok: false,
+            created: false,
+            token: null,
+            status: null,
+            version: 'RESET-SWE-V1',
+            matches: false,
+            stage,
+            code: error?.code || null,
+            constraint: error?.constraint || null
+          });
         }
-
-        const verify = await sql`
-          SELECT
-            s.session_id,
-            CASE
-              WHEN s.status = 'submitted' THEN 'completed'
-              WHEN COALESCE(s.browser->>'technical_submitted', 'false') = 'true' THEN 'technical_submitted'
-              WHEN COALESCE(s.browser->>'prestart', 'false') = 'true' THEN 'invited'
-              ELSE s.status
-            END AS status,
-            c.name AS candidate_name,
-            c.email AS candidate_email,
-            s.version
-          FROM assessment_sessions s
-          JOIN candidates c ON c.id = s.candidate_id
-          WHERE s.session_id = ${sessionId}
-          LIMIT 1
-        `;
-
-        const row = verify[0] || null;
-        const matches = Boolean(
-          row &&
-          row.candidate_name === candidateName &&
-          row.candidate_email === candidateEmail &&
-          row.version === 'RESET-SWE-V1'
-        );
-
-        results.push({
-          index,
-          ok: Boolean(row) && matches,
-          created,
-          token: sessionId,
-          status: row?.status || null,
-          version: row?.version || null,
-          matches
-        });
       }
 
       return json(res, 200, { ok: true, batchId, results });
@@ -258,6 +291,13 @@ export default async function handler(req, res) {
       code: error?.code,
       message: error?.message
     });
-    return json(res, 500, { ok: false, error: 'batch operation failed' });
+    return json(res, 500, {
+      ok: false,
+      error: 'batch operation failed',
+      stage: 'handler',
+      code: error?.code || null,
+      constraint: error?.constraint || null,
+      name: error?.name || null
+    });
   }
 }

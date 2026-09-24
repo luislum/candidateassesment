@@ -14,7 +14,10 @@ async function loadAssessment(sql, token) {
   const rows = await sql`
     SELECT
       s.session_id,
-      s.status,
+      CASE
+        WHEN COALESCE(s.browser->>'prestart', 'false') = 'true' THEN 'invited'
+        ELSE s.status
+      END AS status,
       s.version,
       s.started_at,
       s.submitted_at,
@@ -90,8 +93,11 @@ export default async function handler(req, res) {
       await sql`
         UPDATE assessment_sessions
         SET
-          status = CASE WHEN status = 'invited' THEN 'started' ELSE status END,
-          started_at = CASE WHEN status = 'invited' THEN NOW() ELSE started_at END,
+          status = 'started',
+          started_at = CASE
+            WHEN COALESCE(browser->>'prestart', 'false') = 'true' THEN NOW()
+            ELSE started_at
+          END,
           browser = ${browserJson}::jsonb,
           updated_at = NOW()
         WHERE session_id = ${token}

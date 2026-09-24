@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Copy, ExternalLink, Eye, Lock, LogOut, Plus, RefreshCw } from 'lucide-react';
+import { Copy, Download, ExternalLink, Eye, Lock, LogOut, Plus, RefreshCw } from 'lucide-react';
+import { PRACTICAL_CASE, TECHNICAL_QUESTIONS, WORK_STYLE_DIMENSIONS, WORK_STYLE_STATEMENTS } from '../data/questions';
 
 interface Props {
   onOpenCandidateLink: (token: string) => void;
@@ -209,6 +210,142 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
       dimensions = answerMap.ws_dimensions ? JSON.parse(answerMap.ws_dimensions) : null;
     } catch {}
 
+    const buildLlmExport = () => {
+      const assessment = detail?.assessment || selected;
+      const eventCounts = events.reduce((acc: Record<string, number>, event: any) => {
+        const key = event.event_type || 'unknown';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+
+      const technical = TECHNICAL_QUESTIONS.map((q) => {
+        const practicalCase = q.id === 'q12'
+          ? [
+              '',
+              'CASO PRÁCTICO:',
+              PRACTICAL_CASE.scenario,
+              ...PRACTICAL_CASE.requirements,
+              'Criterios adicionales del caso: ' + PRACTICAL_CASE.evaluationCriteria
+            ].join('\n')
+          : '';
+
+        return [
+          '------------------------------------------------------------',
+          q.title,
+          'Sección: ' + q.section,
+          'Puntaje máximo: ' + q.points,
+          q.codeSnippet ? 'Contexto / código:\n' + q.codeSnippet : '',
+          practicalCase,
+          'RESPUESTA DEL CANDIDATO:',
+          answerMap[q.id] || '[Sin respuesta]',
+          q.rubricHint ? 'RÚBRICA / RESPUESTA ESPERADA:\n' + q.rubricHint : 'RÚBRICA: No aplica / pregunta descriptiva.'
+        ].filter(Boolean).join('\n');
+      }).join('\n\n');
+
+      const dimensionDefinitions = Object.values(WORK_STYLE_DIMENSIONS)
+        .map((dimension) => '- ' + dimension.code + ' · ' + dimension.name + ': ' + dimension.description)
+        .join('\n');
+
+      const workStyle = WORK_STYLE_STATEMENTS.map((item) => [
+        item.id + '. [' + item.dimensionCode + ' · ' + item.dimensionName + ']',
+        item.statement,
+        'Respuesta (1-5): ' + (answerMap['ws' + item.id] || '[Sin respuesta]'),
+        'Ítem de puntuación inversa: ' + (item.isReverse ? 'Sí' : 'No')
+      ].join('\n')).join('\n\n');
+
+      const integrity = events.length
+        ? events.map((event: any, index: number) => [
+            (index + 1) + '. ' + (event.event_type || 'evento'),
+            'Fecha/hora: ' + (event.occurred_at || ''),
+            event.question_id ? 'Pregunta: ' + event.question_id : '',
+            event.detail ? 'Detalle: ' + event.detail : ''
+          ].filter(Boolean).join(' | ')).join('\n')
+        : '[Sin eventos registrados]';
+
+      return [
+        'RESET — EXPORTACIÓN DE ASSESSMENT PARA ANÁLISIS CON LLM',
+        'Puesto: Ingeniero en Desarrollo de Software / Sistemas',
+        '',
+        'INSTRUCCIONES PARA EL LLM',
+        'Analiza esta evaluación como apoyo al proceso de selección. Basa toda conclusión en evidencia observable de las respuestas.',
+        'Para la parte técnica: compara cada respuesta con la rúbrica, propone un puntaje por pregunta hasta su máximo, explica brevemente la evidencia, suma un puntaje técnico sugerido sobre 100 e identifica fortalezas, brechas y preguntas de seguimiento para entrevista.',
+        'Para personalidad laboral: interpreta únicamente tendencias de estilo de trabajo relevantes al rol. Es un autoinforme, no una evaluación clínica. No infieras salud mental, discapacidad, religión, raza, orientación sexual, situación familiar ni ningún otro atributo sensible o protegido.',
+        'Los eventos de integridad son señales contextuales y no deben tratarse por sí solos como prueba de fraude.',
+        'No emitas una decisión automática de contratar/no contratar. Entrega evidencia, riesgos técnicos, áreas por validar y preguntas recomendadas para entrevista.',
+        '',
+        '============================================================',
+        'DATOS DEL CANDIDATO',
+        'Nombre: ' + selected.candidate_name,
+        'Correo: ' + selected.candidate_email,
+        'Session ID: ' + selected.session_id,
+        'Estado: ' + selected.status,
+        'Inicio: ' + (assessment.started_at || ''),
+        'Entrega: ' + (assessment.submitted_at || ''),
+        'Tiempo registrado (segundos): ' + (assessment.elapsed_seconds ?? ''),
+        '',
+        '============================================================',
+        'PARTE 1 — EVALUACIÓN TÉCNICA',
+        technical,
+        '',
+        '============================================================',
+        'PARTE 2 — PERSONALIDAD LABORAL Y ESTILO DE TRABAJO',
+        '',
+        'DIMENSIONES EVALUADAS',
+        dimensionDefinitions,
+        '',
+        'RESULTADO CALCULADO POR DIMENSIONES',
+        dimensions ? JSON.stringify(dimensions, null, 2) : '[Aún no disponible]',
+        '',
+        'INDICADOR DE CONSISTENCIA',
+        answerMap.ws_consistency || '[Aún no disponible]',
+        '',
+        'RESPUESTAS CRUDAS DE PERSONALIDAD',
+        workStyle,
+        '',
+        '============================================================',
+        'EVENTOS DE INTEGRIDAD',
+        'Total de eventos: ' + events.length,
+        'Conteo por tipo: ' + JSON.stringify(eventCounts),
+        '',
+        integrity,
+        '',
+        '============================================================',
+        'FORMATO DE RESPUESTA SUGERIDO PARA EL LLM',
+        '1. Resumen técnico ejecutivo.',
+        '2. Tabla con Q1–Q14: puntaje sugerido, máximo, evidencia y comentario.',
+        '3. Puntaje técnico sugerido total /100.',
+        '4. Fortalezas técnicas demostradas.',
+        '5. Brechas o riesgos que requieren validación.',
+        '6. Interpretación de las seis dimensiones de personalidad laboral.',
+        '7. Lectura contextual de eventos de integridad, sin asumir fraude.',
+        '8. Entre 5 y 10 preguntas específicas para la entrevista.',
+        '9. Aspectos que no pueden concluirse con esta evaluación.'
+      ].join('\n');
+    };
+
+    const copyForLlm = async () => {
+      try {
+        await navigator.clipboard.writeText(buildLlmExport());
+        alert('Assessment copiado. Ya puedes pegarlo directamente en el LLM.');
+      } catch {
+        alert('No se pudo copiar automáticamente. Usa Descargar TXT.');
+      }
+    };
+
+    const downloadForLlm = () => {
+      const content = buildLlmExport();
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeName = selected.candidate_name.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '');
+      link.href = url;
+      link.download = 'RESET_Assessment_' + (safeName || 'Candidato') + '_LLM.txt';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    };
+
     return (
       <div className="min-h-screen bg-[#090d12] text-[#edf3f8] p-6">
         <div className="max-w-5xl mx-auto space-y-6">
@@ -221,6 +358,24 @@ export const SimpleAdminDashboard: React.FC<Props> = ({ onOpenCandidateLink }) =
             <p className="text-sm text-slate-400">{selected.candidate_email}</p>
             <div className="mt-3 text-xs text-slate-500 font-mono">{selected.session_id}</div>
             <div className="mt-2 text-sm text-blue-400 font-semibold">Estado: {selected.status}</div>
+            {!detailLoading && detail && (
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={copyForLlm}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold flex items-center gap-2"
+                >
+                  <Copy size={16} /> Copiar para LLM
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadForLlm}
+                  className="px-4 py-2.5 border border-[#263241] hover:border-slate-500 rounded-xl text-sm font-bold flex items-center gap-2"
+                >
+                  <Download size={16} /> Descargar TXT
+                </button>
+              </div>
+            )}
           </div>
 
           {detailLoading ? (

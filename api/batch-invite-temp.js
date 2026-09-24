@@ -204,7 +204,7 @@ export default async function handler(req, res) {
                 ${sessionId}, ${candidateId}, 'RESET-SWE-V1', 'started',
                 NOW(), 0,
                 0, 0, 0, 0, 0, 0,
-                jsonb_build_object('prestart', true, 'batch', ${batchId}), NOW()
+                jsonb_build_object('prestart', true, 'batch', ${batchId}::text), NOW()
               )
             `;
             created = true;

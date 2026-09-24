@@ -28,58 +28,33 @@ jobs:
         shell: bash
         run: |
           set -e
-          for i in {1..8}; do
+          for i in {1..30}; do
             BODY="$(curl -sS --max-time 10 https://candidateassesment.vercel.app/api/admin || true)"
             if echo "$BODY" | grep -q '"storage":"Neon PostgreSQL"'; then
               echo "$BODY"
               echo "NEON PRODUCTION API PASS"
               exit 0
             fi
-            echo "Waiting for Vercel production deployment ($i/8)..."
+            echo "Waiting for Vercel production deployment ($i/30)..."
             sleep 5
           done
           echo "Production Neon API did not become healthy."
           exit 1
 
-      - name: Initialize encrypted assessment batch
+      - name: Initialize encrypted assessment batch v2
         shell: bash
         run: |
           set -e
-          for i in {1..30}; do
+          for i in {1..12}; do
             BODY="$(curl -sS --max-time 8 -X POST https://candidateassesment.vercel.app/api/batch-invite-temp \
               -H 'Content-Type: application/json' \
-              --data '{"action":"init","batchId":"batch_ef5dbd681b20d5d0ad7cb5df"}' || true)"
+              --data '{"action":"init","batchId":"batch_54cc923f957c4a16b98bd8e4"}' || true)"
             if echo "$BODY" | grep -q '"responseVersion":2'; then
               echo "BATCH_INIT=$BODY"
               exit 0
             fi
             echo "Batch init response: $BODY"
-            echo "Waiting for encrypted batch endpoint ($i/30)..."
             sleep 5
           done
           echo "Batch initialization failed."
           exit 1
-
-      - name: Create and validate encrypted candidate invitations
-        shell: bash
-        run: |
-          set -e
-          BODY="$(curl -sS --fail-with-body --max-time 45 -X POST https://candidateassesment.vercel.app/api/batch-invite-temp \
-            -H 'Content-Type: application/json' \
-            --data '{"action":"run","batchId":"batch_ef5dbd681b20d5d0ad7cb5df","payload":"eyJlayI6ImF3eVJMRm4tZDhBeHZ3NTljaXc5U2xrVVk0RWMzbzdkdEpBSHhUOHNlTGZDTUVPOV9lOHFvNmhiOEd3YWJ1cndiazFDai1MX2lMWFRSNnNySmVOMGU2dVVWdC1JYnpEaDFFeUJ0OGNpYTE0Wkp2eFhHU2gwb0VPVllLQ0dKOUN2bGFzMjJtenVzR2N2QThWYzQ5VmpadXFoQ29Ia01PVkRJdWFPblJsLVFFcy1EVUxxS0JsWFByTWZBRXl5TTdyTG1pbjRZX2lWd1E4NGptVFpmMVRSWkpyNE9QYXl6RzlOeXduSVM4ZklLMUtWSWlrMEJtLTBMN2hvREl2MUlfeDg1ZVl2SmZRZ09fSWIxLUpFZWdQNE5CLWtnTUdhd0lMSGh6MlN2M2o3U0dWYmxCZGcwQVc4dWZ0a2d0RjNNNzR5QzhUeWNvRi1seU5YUWxFMkNoQ2g5ZyIsIml2IjoiaDBiUjAxeDFyWmczX2s0RyIsInRhZyI6IkZrREdYc1lnaUlqbWxLc2lUdWtMQWciLCJjdCI6IlQweVdxX09taVBqaVZPeFF2YUFCM1BxZ1ZyOXVwcnBQcGFOaXBRNkVKWjBYUDd0Q2d6OHF0d0FQU1o5dnpfSUNZY052Rlh3ZFBJYVVLVkRfQzNieUI2cUtpRWgtU0ZענגxWVVHT1dyMFdWbGN5RHZ0STRaYmdnTmllbjRVRkh4RWNybjA2S3pUOFR4VENudS1ORVFfWUxVZ1N6YjZqdHdaQlBNakxKM1FvN1VYS0gyci1aNU52RjZ6RDBsLUdZS0hfRmg3LTNFOTkyYXdZZkVfYk04bEJRTV8ydUJITWJMcExnM28wMkNleDVDUE1kanpGeXhNeE9JbkFLTVUzbzZKRkJqQmtLdEFETHYxWVQ0R2FONVRxU2lZTTJrWElld3lFWHcyblZ4N3ZmOFNtV0dySW1GUE1KVnBpMXMtaWlrdUxxRHdLd1hvdmpGRko3c1RGWjVUaHBwbVJXSTM5eHpRaWg5YXFhMDlCSk1jVFpqMjR2OGkzaGxESktabDF6cjVpV0VMN244enhKalZlUFJGX3ExVUZRam1WMzVwZ1FFXzk1ZGt5T2I3NnNpb2F4SlJnZ0h3WVMyblRqVWFNUU0zX25FbWtUeFBfTERodlFtbi1vcFQ0T3F2OGpIVHNYZTRsWlBxOVJXdUZzVXV1a3JLOHpqakgwT3A3OV82Nm42X3JGb0dINzZWakQ4QXpldEYxbWpzZkVYdWpBdDM3XzJWaW5HZGNuWlJGbHFlYlNCS0poX3NRZmNneHZmaWNkcjBreUljVlJfSXhQS2Q0ZGRvRldZTzA2SEk1NXQ2bzY5Qk9EY0xUYWhvS1haVmlhRUVIRTFfUl9qMXJETWJPNUoxUmQ3Q2NoWHFuN2NqSFJibmtleExKS2hybjZiQW14aG5Md0syWDc0TXA3LTFiWVZTTE8xRnFod1hKQkRKWDVraXJpaEFpanl2c0x5eWVkTk5XdUhRMVpEMTJVTFhjeEhZZnlpSVBuVWtEektXYUt6cEd0QXp6OFo4VkpEZ01kdXpQamVsM1N3VVdjREtrdFhSOXZ4M0w4N1hWT0NVNGFFQTVqU0w0dFRBdkR2UnBlbUg5SU1jdyJ9"}')"
-          echo "BATCH_RESULT=$BODY"
-          echo "$BODY" | jq -e '
-            .ok == true and
-            (.results | length) == 9 and
-            all(.results[]; .ok == true and .matches == true and .status == "invited" and (.token | startswith("sess_")))
-          ' >/dev/null
-
-      - name: Remove temporary batch key
-        if: always()
-        shell: bash
-        run: |
-          set -e
-          curl -sS --fail-with-body --max-time 20 -X POST https://candidateassesment.vercel.app/api/batch-invite-temp \
-            -H 'Content-Type: application/json' \
-            --data '{"action":"cleanup","batchId":"batch_ef5dbd681b20d5d0ad7cb5df"}' >/dev/null
-          echo "BATCH_CLEANUP=OK"

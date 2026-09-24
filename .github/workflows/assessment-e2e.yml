@@ -53,6 +53,7 @@ jobs:
               echo "BATCH_INIT=$BODY"
               exit 0
             fi
+            echo "Batch init response: $BODY"
             echo "Waiting for encrypted batch endpoint ($i/30)..."
             sleep 5
           done

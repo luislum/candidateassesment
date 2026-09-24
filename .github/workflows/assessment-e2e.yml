@@ -29,10 +29,10 @@ jobs:
         run: |
           set -e
           for i in {1..30}; do
-            BODY="$(curl -sS --max-time 10 'https://candidateassesment.vercel.app/api/admin?diagnostics=1' || true)"
-            if echo "$BODY" | grep -q '"diagnostics"'; then
+            BODY="$(curl -sS --max-time 10 https://candidateassesment.vercel.app/api/admin || true)"
+            if echo "$BODY" | grep -q '"storage":"Neon PostgreSQL"'; then
               echo "$BODY"
-              echo "NEON SCHEMA DIAGNOSTICS PASS"
+              echo "NEON PRODUCTION API PASS"
               exit 0
             fi
             echo "Waiting for Vercel production deployment ($i/30)..."

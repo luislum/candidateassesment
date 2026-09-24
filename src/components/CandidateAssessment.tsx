@@ -554,7 +554,9 @@ export const CandidateAssessment: React.FC<CandidateAssessmentProps> = ({
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">Correo electrónico</label>
                 <input
-                  type="email"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="email"
                   value={candidateEmail}
                   onChange={(e) => setCandidateEmail(e.target.value)}
                   className="w-full bg-[#0a1017] border border-[#263241] rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"

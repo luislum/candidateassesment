@@ -140,16 +140,20 @@ export default async function handler(req, res) {
 
       const results = [];
 
-      for (const candidate of candidates) {
+      for (let index = 0; index < candidates.length; index += 1) {
+        const candidate = candidates[index];
         const candidateName = cleanString(candidate?.name, 150);
         const candidateEmail = cleanString(candidate?.email, 200).toLowerCase();
 
         if (!candidateName || !EMAIL_RE.test(candidateEmail)) {
           results.push({
-            name: candidateName || null,
-            email: candidateEmail || null,
+            index,
             ok: false,
-            error: 'invalid candidate'
+            created: false,
+            token: null,
+            status: 'invalid',
+            version: 'RESET-SWE-V1',
+            matches: false
           });
           continue;
         }
@@ -206,11 +210,22 @@ export default async function handler(req, res) {
           LIMIT 1
         `;
 
+        const row = verify[0] || null;
+        const matches = Boolean(
+          row &&
+          row.candidate_name === candidateName &&
+          row.candidate_email === candidateEmail &&
+          row.version === 'RESET-SWE-V1'
+        );
+
         results.push({
-          ok: Boolean(verify[0]),
+          index,
+          ok: Boolean(row) && matches,
           created,
           token: sessionId,
-          assessment: verify[0] || null
+          status: row?.status || null,
+          version: row?.version || null,
+          matches
         });
       }
 

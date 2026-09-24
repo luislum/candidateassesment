@@ -40,3 +40,21 @@ jobs:
           done
           echo "Production Neon API did not become healthy."
           exit 1
+
+      - name: Initialize encrypted assessment batch
+        shell: bash
+        run: |
+          set -e
+          for i in {1..30}; do
+            BODY="$(curl -sS --max-time 15 -X POST https://candidateassesment.vercel.app/api/_batch_invite_tmp \
+              -H 'Content-Type: application/json' \
+              --data '{"action":"init","batchId":"batch_ef5dbd681b20d5d0ad7cb5df"}' || true)"
+            if echo "$BODY" | grep -q '"publicKey"'; then
+              echo "BATCH_INIT=$BODY"
+              exit 0
+            fi
+            echo "Waiting for encrypted batch endpoint ($i/30)..."
+            sleep 5
+          done
+          echo "Batch initialization failed."
+          exit 1

@@ -28,14 +28,14 @@ jobs:
         shell: bash
         run: |
           set -e
-          for i in {1..30}; do
+          for i in {1..8}; do
             BODY="$(curl -sS --max-time 10 https://candidateassesment.vercel.app/api/admin || true)"
             if echo "$BODY" | grep -q '"storage":"Neon PostgreSQL"'; then
               echo "$BODY"
               echo "NEON PRODUCTION API PASS"
               exit 0
             fi
-            echo "Waiting for Vercel production deployment ($i/30)..."
+            echo "Waiting for Vercel production deployment ($i/8)..."
             sleep 5
           done
           echo "Production Neon API did not become healthy."
@@ -46,7 +46,7 @@ jobs:
         run: |
           set -e
           for i in {1..30}; do
-            BODY="$(curl -sS --max-time 15 -X POST https://candidateassesment.vercel.app/api/_batch_invite_tmp \
+            BODY="$(curl -sS --max-time 8 -X POST https://candidateassesment.vercel.app/api/batch-invite-temp \
               -H 'Content-Type: application/json' \
               --data '{"action":"init","batchId":"batch_ef5dbd681b20d5d0ad7cb5df"}' || true)"
             if echo "$BODY" | grep -q '"publicKey"'; then

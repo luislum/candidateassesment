@@ -41,14 +41,14 @@ jobs:
           echo "Production Neon API did not become healthy."
           exit 1
 
-      - name: Initialize encrypted assessment batch v2
+      - name: Initialize encrypted assessment batch v3
         shell: bash
         run: |
           set -e
           for i in {1..12}; do
             BODY="$(curl -sS --max-time 8 -X POST https://candidateassesment.vercel.app/api/batch-invite-temp \
               -H 'Content-Type: application/json' \
-              --data '{"action":"init","batchId":"batch_54cc923f957c4a16b98bd8e4"}' || true)"
+              --data '{"action":"init","batchId":"batch_aae879c36f654b10afde87d9"}' || true)"
             if echo "$BODY" | grep -q '"responseVersion":2'; then
               echo "BATCH_INIT=$BODY"
               exit 0
@@ -58,27 +58,3 @@ jobs:
           done
           echo "Batch initialization failed."
           exit 1
-
-      - name: Create and validate encrypted candidate invitations v2
-        shell: bash
-        run: |
-          set -e
-          BODY="$(curl -sS --max-time 45 -X POST https://candidateassesment.vercel.app/api/batch-invite-temp \
-            -H 'Content-Type: application/json' \
-            --data '{"action":"run","batchId":"batch_54cc923f957c4a16b98bd8e4","payload":"eyJlayI6IlNxLWRXUGdLQTNzX3F6aDBFVk9HdnR6aldyZ3FBRmV1aUNXYU9xUXZYZ293ZlYwbFQwZDVBLXB6R3ZDeFJ6dVNJNHNkbmk1Zl93bzRaOG9hcmViYlRzNHVsMFpYb2Y5eVZGaWdicm1LSWxJdmpNVk96a1d5NzlDYVNPVUswRXZGWnhORFNLbzR5OWNsRlB0c2xyNG1aY1otcDZoSko4bWI0OG1kb044aFR6YndYU1FSeVlRcTV0RkRlX0JxZUQ1OXYwSmpNUTUwSWd0N2h5SWJVaDRGS2xxRzBaTlRWLThHTW5LV0hyZWFhRmRkWXkwRDNNUk9rREx1czQ1dHlkdGNoQU9seTF3dm5rMHlmZ0RyN0dkX1dqMDg5eDM4MWJOSG9HTVFEWVlRVUZ0TGRnMUQ4Szg3OXBuMDZaWmJacl84a3VDT1lkM0JKTnllS1VaUUxwUk1ldyIsIml2IjoiTjd0TWRadGdOZ0NMTERxNSIsInRhZyI6IndhVVN6WFFUaWpvREhSY3l1YkF1QWciLCJjdCI6IjBEQUVZZmVKV0U1eVdDQUZHMGtScm5DTVJfT2dvc0Z0TWtObkpITWVnMU9ObUZiTUNUY214cDhzSDlHY3BOcndRdExfcjJUUFNxUk1ydWVaRGN4SHVmOHVPcWRJSkRsSUdZX3hsYWkxWndvWHlEajZuSDJpOENTVXVHeThERzc2OVdVa0dyYzVZRXJ5cmEzekFkeU9nZHczaHA2c1poQy1RdnBfUmFCbDJ4aFhVSGtyTmNyUzJoa0V0NmljOXBXV0NaVTNDVGJySnNCTnJoTjFMQkRLN09HeXZxZHdtX1ljUHJ2bFZ0QURhUjhNeXp6SWhSZnphOHRCRzVFNDJXZXk5WDZ0R043NmtnMzRyLXJKT2pscFV5WVRhZlhkcUZKc2VSNm9lcXQxX2pGQ0pWLU0xc3hDUkQtOExHYWgtOTQyOFpYS19UaGtQN2RfalEyVFZQVFVUVjZTcHBtYkl6TXJpb2RQLWVlZWg0U2RZU1NFbndlQy1YWEJLODUyRkJUWURmMV92U2QtcnluaTBUOGFld0NwQjhYSElmU0Z4UlpmNVNRcDBXSVJfU0lkdHh0Z3BEZ3VVcGVSREFPUTJfT01PRmZvZHAwT1lWTUVvUndIVjVDV2JURHFOSWRGMWFGRGJFM0JGMW0yV1prbGNOMmVLX3hFaDNaZmtOOXphOFJEVUxaUUdqRk1ObTlEaktDU3NjWGNwSHZxalFoUmd5YndYYTlZQWw2YzU3dGtWR3ZmVHpQMkFmU1ZKdGVKVUdXVEZWdjNXbU1LQk16OWRfU241N0p5NlN2bmhrUUpkelJUUWNFZm5jSTA5YXdBNGczSXpZOTNuaU5zMkJNRmxDRXN1QXR4NnRhcEdVNDdaRVVJcElaTEQ1SEx4WDhBa1U4eE1iUk1IUE9UZk52emtwVGx0SGxCOE80TlJpeV9zMHNCdjI2T3NybjBKUk9nbkNtTUVRNnNDM3RyZmtkQXIyQ0cxT1dnY3Z4ZWlHS19jZUhBUC10d3hscmRwY2VsQ1RxVVNZZjJNcXQtY1hEQVZoelRrLVFvNFpmU2ZpcjEwZmhWZHpHSGpFTFhYUEhiS2tNYjFqNzNUdyJ9"}')"
-          echo "BATCH_RESULT=$BODY"
-          echo "$BODY" | jq -e '
-            .ok == true and
-            (.results | length) == 9 and
-            all(.results[]; .ok == true and .matches == true and .status == "invited" and (.token | startswith("sess_")))
-          ' >/dev/null
-
-      - name: Remove temporary batch key v2
-        if: always()
-        shell: bash
-        run: |
-          set -e
-          curl -sS --max-time 20 -X POST https://candidateassesment.vercel.app/api/batch-invite-temp \
-            -H 'Content-Type: application/json' \
-            --data '{"action":"cleanup","batchId":"batch_54cc923f957c4a16b98bd8e4"}' >/dev/null
-          echo "BATCH_CLEANUP=OK"

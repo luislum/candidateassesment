@@ -92,6 +92,7 @@ export default async function handler(req, res) {
         return json(res, 200, {
           ok: true,
           batchId,
+          responseVersion: 2,
           publicKey: Buffer.from(existing[0].public_key, 'utf8').toString('base64url')
         });
       }
@@ -110,6 +111,7 @@ export default async function handler(req, res) {
       return json(res, 200, {
         ok: true,
         batchId,
+        responseVersion: 2,
         publicKey: Buffer.from(pair.publicKey, 'utf8').toString('base64url')
       });
     }

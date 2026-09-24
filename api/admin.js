@@ -39,6 +39,26 @@ export default async function handler(req, res) {
           to_regclass('public.integrity_events') IS NOT NULL AS has_events
       `;
 
+      const diagnosticsRequested = String(req.query?.diagnostics || '') === '1';
+      let diagnostics = null;
+      if (diagnosticsRequested) {
+        const columns = await sql`
+          SELECT column_name, data_type, is_nullable, column_default
+          FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'assessment_sessions'
+          ORDER BY ordinal_position
+        `;
+        const constraints = await sql`
+          SELECT
+            conname AS name,
+            pg_get_constraintdef(oid) AS definition
+          FROM pg_constraint
+          WHERE conrelid = 'public.assessment_sessions'::regclass
+          ORDER BY conname
+        `;
+        diagnostics = { columns, constraints };
+      }
+
       const schemaReady = Boolean(
         health?.has_candidates &&
         health?.has_sessions &&
@@ -57,7 +77,8 @@ export default async function handler(req, res) {
           assessment_sessions: Boolean(health?.has_sessions),
           assessment_answers: Boolean(health?.has_answers),
           integrity_events: Boolean(health?.has_events)
-        }
+        },
+        ...(diagnosticsRequested ? { diagnostics } : {})
       });
     } catch (error) {
       console.error('Neon admin health failed', error);
